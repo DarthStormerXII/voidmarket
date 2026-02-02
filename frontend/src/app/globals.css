@@ -1,0 +1,334 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Font families */
+    --font-display: "Space Grotesk", system-ui, sans-serif;
+    --font-accent: "Orbitron", monospace;
+    --font-body: "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+
+    /* Void colors - Pure black and white */
+    --void-deepest: 0 0% 2%;
+    --void-deep: 0 0% 5%;
+    --void-mid: 0 0% 10%;
+    --void-surface: 0 0% 14%;
+
+    /* Grayscale palette */
+    --white: 0 0% 100%;
+    --white-bright: 0 0% 95%;
+    --white-dim: 0 0% 80%;
+    --gray-light: 0 0% 60%;
+    --gray-mid: 0 0% 40%;
+    --gray-dark: 0 0% 25%;
+
+    /* Text */
+    --text-primary: 0 0% 100%;
+    --text-secondary: 0 0% 70%;
+    --text-muted: 0 0% 45%;
+
+    /* Semantic mappings for shadcn */
+    --background: var(--void-deepest);
+    --foreground: var(--text-primary);
+    --card: var(--void-deep);
+    --card-foreground: var(--text-primary);
+    --popover: var(--void-mid);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--white);
+    --primary-foreground: var(--void-deepest);
+    --secondary: var(--void-surface);
+    --secondary-foreground: var(--text-secondary);
+    --muted: var(--void-mid);
+    --muted-foreground: var(--text-muted);
+    --accent: var(--white-bright);
+    --accent-foreground: var(--void-deepest);
+    --destructive: var(--white);
+    --destructive-foreground: var(--void-deepest);
+    --border: var(--void-surface);
+    --input: var(--void-surface);
+    --ring: var(--white);
+    --radius: 0.75rem;
+  }
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  /* Void palette */
+  --color-void-deepest: hsl(var(--void-deepest));
+  --color-void-deep: hsl(var(--void-deep));
+  --color-void-mid: hsl(var(--void-mid));
+  --color-void-surface: hsl(var(--void-surface));
+
+  /* Grayscale */
+  --color-white: hsl(var(--white));
+  --color-white-bright: hsl(var(--white-bright));
+  --color-white-dim: hsl(var(--white-dim));
+  --color-gray-light: hsl(var(--gray-light));
+  --color-gray-mid: hsl(var(--gray-mid));
+  --color-gray-dark: hsl(var(--gray-dark));
+
+  /* Text */
+  --color-text-primary: hsl(var(--text-primary));
+  --color-text-secondary: hsl(var(--text-secondary));
+  --color-text-muted: hsl(var(--text-muted));
+
+  /* Font families */
+  --font-display: var(--font-display);
+  --font-accent: var(--font-accent);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  /* Border radius */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Animations */
+  --animate-void-pulse: void-pulse 2s ease-in-out infinite;
+  --animate-float-into-void: float-into-void 0.6s ease-out forwards;
+  --animate-reveal-from-void: reveal-from-void 0.5s ease-out forwards;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-border-glow: border-glow 2s ease-in-out infinite;
+  --animate-spin-slow: spin-slow 20s linear infinite;
+  --animate-black-hole-spin: black-hole-spin 30s linear infinite;
+  --animate-accretion-disk: accretion-disk 15s linear infinite;
+  --animate-particle-orbit: particle-orbit 8s linear infinite;
+
+  /* Box shadows - monochrome */
+  --shadow-glow-white: 0 0 20px hsl(var(--white) / 0.2), 0 0 40px hsl(var(--white) / 0.1);
+  --shadow-glow-soft: 0 0 30px hsl(var(--white) / 0.1), 0 0 60px hsl(var(--white) / 0.05);
+  --shadow-glow-card: 0 4px 20px hsl(var(--void-deepest) / 0.8), 0 0 30px hsl(var(--white) / 0.05);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply text-foreground;
+    font-family: var(--font-body);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background-color: #050505;
+  }
+
+  /* Global uppercase styling for UI elements */
+  h1, h2, h3, h4, h5, h6 {
+    @apply uppercase tracking-wide;
+    font-family: var(--font-display);
+  }
+}
+
+@layer utilities {
+  /* Text glow utilities */
+  .text-glow {
+    text-shadow: 0 0 20px hsl(var(--white) / 0.4);
+  }
+
+  .text-glow-soft {
+    text-shadow: 0 0 30px hsl(var(--white) / 0.2);
+  }
+
+  /* Safe area utilities */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Hide scrollbar but allow scroll */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Glow effects */
+  .glow {
+    box-shadow: var(--shadow-glow-white);
+  }
+
+  .glow-soft {
+    box-shadow: var(--shadow-glow-soft);
+  }
+
+  .glow-card {
+    box-shadow: var(--shadow-glow-card);
+  }
+}
+
+/* Keyframe animations */
+@keyframes void-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes float-into-void {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  30% {
+    transform: translateY(-10px) scale(1.05);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-50px) scale(0.8);
+    opacity: 0;
+    filter: blur(8px);
+  }
+}
+
+@keyframes reveal-from-void {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+    filter: blur(10px);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes border-glow {
+  0%, 100% {
+    border-color: hsl(var(--gray-dark));
+  }
+  50% {
+    border-color: hsl(var(--white-dim));
+  }
+}
+
+@keyframes spin-slow {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Black hole animations */
+@keyframes black-hole-spin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes accretion-disk {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(-360deg) scale(1);
+    opacity: 0.3;
+  }
+}
+
+@keyframes particle-orbit {
+  0% {
+    transform: rotate(0deg) translateX(var(--orbit-radius)) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(360deg) translateX(var(--orbit-radius)) rotate(-360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes spiral-inward {
+  0% {
+    transform: rotate(0deg) translateX(var(--start-radius));
+    opacity: 0.8;
+  }
+  100% {
+    transform: rotate(720deg) translateX(0px);
+    opacity: 0;
+  }
+}
+
+@keyframes event-horizon-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 60px 20px rgba(255, 255, 255, 0.02),
+      inset 0 0 60px 20px rgba(0, 0, 0, 1);
+  }
+  50% {
+    box-shadow:
+      0 0 80px 30px rgba(255, 255, 255, 0.04),
+      inset 0 0 80px 30px rgba(0, 0, 0, 1);
+  }
+}
+
+@keyframes gravitational-lensing {
+  0%, 100% {
+    filter: blur(0px);
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    filter: blur(1px);
+    transform: translate(-50%, -50%) scale(1.02);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
