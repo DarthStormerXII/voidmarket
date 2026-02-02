@@ -365,3 +365,193 @@ YOU ARE READY
        ┌─────────────┼─────────────┐
        ▼             ▼             ▼
 ┌────────────┐ ┌────────────┐ ┌─────────────────┐
+│   LI.FI    │ │    Arc     │ │      ENS        │
+│            │ │            │ │                 │
+│ (cross-    │ │ • Wallets  │ │ • Mainnet       │
+│  chain     │ │ • Balances │ │   Resolver      │
+│  deposits) │ │ • Bets     │ │ • CCIP-Read     │
+│            │ │ • Payouts  │ │ • Wildcard      │
+└────────────┘ │ • Stork    │ │   Subdomains    │
+      │        └────────────┘ └─────────────────┘
+      │              │                 │
+      ▼              ▼                 ▼
+┌─────────────────────────────────────────────┐
+│  Hybrid Data Layer                          │
+│                                             │
+│  Arc Chain:     Wallets, bets, USDC, payouts│
+│  PostgreSQL:    Stats, profiles, metadata   │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## Resolution & Payouts
+
+### Timeout Mechanism
+
+```
+Resolution timeline:
+├── T+0: Oracle result published (Stork)
+├── T+0 to T+1h: Reveal window
+├── T+1h: Non-revealed bets forfeit
+└── T+1h: Payouts distributed on Arc
+```
+
+### Reveal Flow
+
+```
+Bot DM: Market resolved!
+        eth-10k.gabrielaxy.eth → YES wins!
+
+        Reveal your bet to claim winnings:
+        [Reveal & Claim] ← button
+
+Telegram: Auto-retrieves from Cloud Storage
+
+→ Server verifies: hash(reveal) == commitment
+→ Payout sent via Arc (USDC)
+```
+
+---
+
+## Database Schema
+
+```sql
+-- Users (Stars)
+stars:
+  id                TEXT PRIMARY KEY
+  wallet_address    ADDRESS
+  telegram_id       TEXT
+  circle_wallet_id  TEXT
+  name              TEXT
+  star_type         TEXT (red-giant, blue-supergiant, white-dwarf, yellow-sun, neutron, binary)
+  bio               TEXT
+  cluster_id        TEXT REFERENCES clusters
+  total_photons     INTEGER DEFAULT 0
+  created_at        TIMESTAMP
+
+-- Clusters
+clusters:
+  id                TEXT PRIMARY KEY
+  name              TEXT
+  description       TEXT
+  leader_id         TEXT REFERENCES stars
+  energy            INTEGER DEFAULT 0
+  total_novas       INTEGER DEFAULT 0
+  novas_won         INTEGER DEFAULT 0
+  current_nova_id   TEXT REFERENCES novas
+  created_at        TIMESTAMP
+
+-- Cluster Members
+cluster_members:
+  cluster_id        TEXT REFERENCES clusters
+  star_id           TEXT REFERENCES stars
+  photons           INTEGER DEFAULT 0
+  novas_played      INTEGER DEFAULT 0
+  novas_won         INTEGER DEFAULT 0
+  joined_at         TIMESTAMP
+  PRIMARY KEY (cluster_id, star_id)
+
+-- Novas
+novas:
+  id                TEXT PRIMARY KEY
+  cluster1_id       TEXT REFERENCES clusters
+  cluster2_id       TEXT REFERENCES clusters
+  status            ENUM (pending, active, completed)
+  wager_amount      DECIMAL
+  winner_id         TEXT REFERENCES clusters
+  started_at        TIMESTAMP
+  ended_at          TIMESTAMP
+
+-- Nova Matches (1v1)
+nova_matches:
+  id                TEXT PRIMARY KEY
+  nova_id           TEXT REFERENCES novas
+  star1_id          TEXT REFERENCES stars
+  star2_id          TEXT REFERENCES stars
+  market_id         TEXT REFERENCES markets
+  star1_bet_outcome TEXT
+  star1_bet_amount  DECIMAL
+  star2_bet_outcome TEXT
+  star2_bet_amount  DECIMAL
+  winner_id         TEXT REFERENCES stars
+  photons_awarded   INTEGER
+  status            ENUM (pending, active, completed)
+
+-- Markets
+markets:
+  id                TEXT PRIMARY KEY
+  ens_name          TEXT UNIQUE
+  question          TEXT
+  deadline          TIMESTAMP
+  oracle_source     TEXT
+  target_value      DECIMAL
+  status            ENUM (open, closed, resolved)
+  result            TEXT
+  creator_address   ADDRESS
+  is_forked         BOOLEAN DEFAULT false
+  original_market_id TEXT REFERENCES markets
+  is_private        BOOLEAN DEFAULT false
+  share_code        TEXT
+  created_at        TIMESTAMP
+
+-- Bets
+bets:
+  id                TEXT PRIMARY KEY
+  market_id         TEXT REFERENCES markets
+  user_address      ADDRESS
+  commitment_hash   TEXT
+  amount            DECIMAL
+  direction         TEXT (null until revealed)
+  secret            TEXT (null until revealed)
+  revealed          BOOLEAN DEFAULT false
+  payout            DECIMAL
+  created_at        TIMESTAMP
+
+-- Deposits
+deposits:
+  id                TEXT PRIMARY KEY
+  user_address      ADDRESS
+  source_chain      TEXT
+  source_token      TEXT
+  source_amount     DECIMAL
+  dest_amount       DECIMAL (USDC on Arc)
+  lifi_tx_hash      TEXT
+  status            ENUM (pending, completed, failed)
+  created_at        TIMESTAMP
+```
+
+---
+
+## Prize Track Alignment
+
+| Prize | How We Qualify |
+|-------|----------------|
+| **LI.FI** ($6k) | Cross-chain deposits from BTC, SOL, SUI, and 50+ EVM chains into betting pool |
+| **Arc** ($10k) | Circle developer wallets + Stork oracle + USDC settlement (gasless UX) |
+| **ENS** ($5k) | Custom CCIP-Read resolver with wildcard resolution. Users, markets, clusters as ENS subdomains. Text records for DeFi data (pool sizes, oracle configs, betting stats). See [ENS_ARCHITECTURE.md](./ENS_ARCHITECTURE.md) |
+
+---
+
+## Hackathon Scope
+
+### Must Have
+- [ ] Telegram bot with betting commands
+- [ ] Telegram Mini App for private bets
+- [ ] Circle embedded wallet integration (developer wallets)
+- [ ] LI.FI cross-chain deposit flow
+- [ ] ENS custom resolver (CCIP-Read + wildcard)
+- [ ] ENS gateway server for off-chain resolution
+- [ ] Star/Market/Cluster subdomains via ENS
+- [ ] Commitment/reveal flow working
+- [ ] Basic oracle resolution (Stork)
+- [ ] Onboarding flow with star selection
+- [ ] Fork market functionality
+
+### Nice to Have
+- [ ] Cluster creation & management
+- [ ] Nova system (1v1 matches)
+- [ ] Multiple oracles (sports, events)
+- [ ] Market discovery/trending
+- [ ] Leaderboards (top clusters)
+- [ ] Referral system
