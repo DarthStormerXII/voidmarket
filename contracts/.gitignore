@@ -1,0 +1,26 @@
+# Foundry artifacts
+cache/
+out/
+
+# Environment files (NEVER commit real private keys!)
+.env
+.env.local
+.env.*.local
+
+# Keep .env.example
+!.env.example
+
+# Broadcast logs (contain transaction details)
+broadcast/
+
+# Coverage reports
+lcov.info
+coverage/
+
+# Node
+node_modules/
+
+# OS files
+.DS_Store
+*.swp
+*.swo
