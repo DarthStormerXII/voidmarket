@@ -181,3 +181,187 @@ At resolution:
 
 ### Deposit From Anywhere
 
+```
+┌─────────────────────────────────────────┐
+│  DEPOSIT TO VOIDMARKET                  │
+│                                         │
+│  From Chain:                            │
+│  [Bitcoin] [Solana] [Sui] [Ethereum]   │
+│  [Arbitrum] [Base] [Polygon] [+more]   │
+│                                         │
+│  From Token:                            │
+│  [BTC] [SOL] [ETH] [USDC] [Any Token]  │
+│                                         │
+│  Amount: [0.01 BTC]                     │
+│  You'll receive: ~$650 USDC on Arc      │
+│                                         │
+│  [Deposit via LI.FI]                    │
+│                                         │
+│  Powered by LI.FI - best routes across │
+│  DEXs and bridges automatically         │
+└─────────────────────────────────────────┘
+```
+
+### Why LI.FI?
+
+- **Universal Access**: Users don't need USDC on Arc to start betting
+- **Any Asset**: Convert BTC, SOL, ETH, or any token to USDC in one tx
+- **Best Routes**: LI.FI finds optimal path across DEXs and bridges
+- **Single UX**: One click deposit, no manual bridging
+
+---
+
+## ENS Market Identity
+
+> **Full architecture documented in [ENS_ARCHITECTURE.md](./ENS_ARCHITECTURE.md)**
+
+### CCIP-Read Off-Chain Resolver (Zero Gas)
+
+We use a custom off-chain resolver with CCIP-Read (EIP-3668) + wildcard resolution (ENSIP-10):
+- **Zero gas** for creating subdomains (users, markets, clusters)
+- **Zero gas** for updating records (stats, profiles, metadata)
+- **Full ENS compatibility** (works with wagmi, viem, wallets)
+
+### ENS Subdomain Structure
+
+```
+voidmarket.eth (our domain)
+├── cosmicvoyager.voidmarket.eth     → Star (user) profile
+├── eth-5k.voidmarket.eth            → Public market
+├── void-seekers.voidmarket.eth      → Cluster
+└── eth-5k.cosmicvoyager.voidmarket.eth → Forked private market
+```
+
+### Hybrid Data Layer
+
+| Data Source | What's Stored |
+|-------------|---------------|
+| **Arc Chain** | Wallets, bets, balances, payouts (via developer wallets = gasless UX) |
+| **PostgreSQL** | Profiles, stats, metadata (free updates, fast queries) |
+
+### ENS Text Records (Resolved via Gateway)
+
+```
+cosmicvoyager.voidmarket.eth:
+  addr(60)                    → 0x7A3B...F92D (wallet from Arc)
+  voidmarket.star-type        → "blue-supergiant"
+  voidmarket.total-photons    → "1250"
+  voidmarket.cluster          → "void-seekers"
+
+eth-5k.voidmarket.eth:
+  voidmarket.question         → "Will ETH hit $5,000 by Q1 2025?"
+  voidmarket.pool-size        → "12500"
+  voidmarket.status           → "open"
+```
+
+---
+
+## Platform Interface
+
+### Telegram Bot + Mini App
+
+```
+User: /bet eth-10k.gabrielaxy.eth YES $100 --private
+
+Bot: Opening secure betting interface...
+     [Place Private Bet] ← opens Mini App
+
+Mini App:
+┌─────────────────────────────────────────┐
+│  eth-10k.gabrielaxy.eth                │
+│  "Will ETH hit $10,000 by June?"       │
+│                                         │
+│  Your Position:                         │
+│  [YES]  [NO]                           │
+│                                         │
+│  Amount: [$100]                         │
+│                                         │
+│  [Send to the Void]                    │
+└─────────────────────────────────────────┘
+
+→ Secret stored in Telegram Cloud Storage
+→ Only commitment sent to server
+
+Bot: Bet entered the void!
+     Market: eth-10k.gabrielaxy.eth
+     Amount: $100 locked
+     Position: HIDDEN
+```
+
+### Public Markets
+
+```
+User: /bet eth-10k.voidmarket.eth YES $50
+
+Bot: Bet placed!
+     Market: eth-10k.voidmarket.eth
+     Position: YES
+     Amount: $50 USDC
+
+     Current Pool: $12,450
+     YES: 62% | NO: 38%
+```
+
+---
+
+## Wallet Integration (Circle Embedded)
+
+### First-Time User (Onboarding Flow)
+
+```
+User opens Mini App for first time
+      │
+      ▼
+WELCOME TO THE VOID
+[BEGIN YOUR JOURNEY]
+      │
+      ▼
+Story screens (2-3 slides of galaxy lore)
+      │
+      ▼
+CHOOSE YOUR STAR
+[6 star type options: Red Giant, Blue Supergiant, White Dwarf, Yellow Sun, Neutron Star, Binary Star]
+      │
+      ▼
+NAME YOUR STAR
+[Name input] [Bio optional]
+      │
+      ▼
+FUEL YOUR STAR
+Circle auth (email/Google/Apple)
+Wallet created and linked to Telegram ID
+      │
+      ▼
+[Deposit via LI.FI] or [Skip for now]
+      │
+      ▼
+YOU ARE READY
+[ENTER THE VOID] → Home page
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────────┐
+│  Telegram Bot   │
+│  + Mini App     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────────────┐
+│  Voidmarket App Server                  │
+│                                         │
+│  ├── Market management                  │
+│  ├── Bet processing (commitments)       │
+│  ├── ZK proof verification              │
+│  ├── Oracle integration (Stork)         │
+│  ├── Payout calculation                 │
+│  ├── Cluster & Nova management          │
+│  └── ENS Gateway (CCIP-Read)            │
+└────────────────────┬────────────────────┘
+                     │
+       ┌─────────────┼─────────────┐
+       ▼             ▼             ▼
+┌────────────┐ ┌────────────┐ ┌─────────────────┐
