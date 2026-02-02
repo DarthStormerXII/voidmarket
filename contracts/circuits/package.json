@@ -1,0 +1,29 @@
+{
+  "name": "voidmarket-circuits",
+  "version": "1.0.0",
+  "description": "ZK circuits for VoidMarket hidden bet directions",
+  "type": "commonjs",
+  "scripts": {
+    "compile:commitment": "circom bet_commitment.circom --r1cs --wasm --sym -o build",
+    "compile:nullifier": "circom bet_nullifier.circom --r1cs --wasm --sym -o build",
+    "compile:reveal": "circom bet_reveal.circom --r1cs --wasm --sym -o build",
+    "compile": "npm run compile:commitment && npm run compile:nullifier && npm run compile:reveal",
+    "setup:commitment": "snarkjs groth16 setup build/bet_commitment.r1cs ptau/powersOfTau28_hez_final_10.ptau build/bet_commitment.zkey",
+    "setup:nullifier": "snarkjs groth16 setup build/bet_nullifier.r1cs ptau/powersOfTau28_hez_final_10.ptau build/bet_nullifier.zkey",
+    "setup:reveal": "snarkjs groth16 setup build/bet_reveal.r1cs ptau/powersOfTau28_hez_final_12.ptau build/bet_reveal.zkey",
+    "setup": "npm run setup:commitment && npm run setup:nullifier && npm run setup:reveal",
+    "export:commitment": "snarkjs zkey export solidityverifier build/bet_commitment.zkey ../src/BetCommitmentVerifier.sol",
+    "export:nullifier": "snarkjs zkey export solidityverifier build/bet_nullifier.zkey ../src/BetNullifierVerifier.sol",
+    "export:reveal": "snarkjs zkey export solidityverifier build/bet_reveal.zkey ../src/BetRevealVerifier.sol",
+    "export": "npm run export:commitment && npm run export:nullifier && npm run export:reveal",
+    "build": "npm run compile && npm run setup && npm run export",
+    "download-ptau": "mkdir -p ptau && curl -L https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_10.ptau -o ptau/powersOfTau28_hez_final_10.ptau && curl -L https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_12.ptau -o ptau/powersOfTau28_hez_final_12.ptau"
+  },
+  "dependencies": {
+    "circomlib": "^2.0.5",
+    "circomlibjs": "^0.1.7"
+  },
+  "devDependencies": {
+    "snarkjs": "^0.7.4"
+  }
+}
