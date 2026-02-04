@@ -1,0 +1,139 @@
+{
+  "timestamp": "2025-02-06",
+  "wallet": "0x32FE11d9900D63350016374BE98ff37c3Af75847",
+
+  "verified_transfers": {
+    "arc_to_x": [
+      {
+        "from": "ARC-TESTNET",
+        "to": "AVALANCHE-FUJI",
+        "status": "verified",
+        "session": "previous"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "ETH-SEPOLIA",
+        "transferId": "f5af60ff-3379-42db-b",
+        "fee": "0.001001",
+        "status": "verified"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "BASE-SEPOLIA",
+        "transferId": "61877469-4399-4e72-8",
+        "fee": "0.001001",
+        "status": "verified"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "SONIC-TESTNET",
+        "transferId": "b82ce8dc-f4bf-46b3-8",
+        "fee": "0.001001",
+        "status": "verified"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "WORLD-CHAIN-SEPOLIA",
+        "transferId": "6d126bcc-e49a-46cd-b",
+        "fee": "0.001001",
+        "status": "verified"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "SEI-ATLANTIC",
+        "transferId": "91a36d1c-a58b-4ea5-a",
+        "fee": "0.001001",
+        "status": "verified"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "HYPEREVM-TESTNET",
+        "transferId": "7d33f97e-fe99-431c-b",
+        "fee": "0.001001",
+        "status": "verified"
+      }
+    ],
+    "x_to_arc": [
+      {
+        "from": "AVALANCHE-FUJI",
+        "to": "ARC-TESTNET",
+        "transferId": "0e2fdc78-47ac-47c9-9284-bbd7d2c7e5ae",
+        "fee": "0.020001",
+        "status": "verified"
+      }
+    ]
+  },
+
+  "pending_transfers": {
+    "arc_to_x_pending_mint": [
+      {
+        "from": "ARC-TESTNET",
+        "to": "AVALANCHE-FUJI",
+        "transferId": "431bfaf4-63bf-477e-b",
+        "amount": "0.035",
+        "fee": "0.001002",
+        "status": "pending_mint"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "SONIC-TESTNET",
+        "transferId": "a5d56a61-9624-4269-9",
+        "amount": "0.035",
+        "fee": "0.001002",
+        "status": "pending_mint"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "SEI-ATLANTIC",
+        "transferId": "38185118-ab47-408f-b",
+        "amount": "0.035",
+        "fee": "0.001002",
+        "status": "pending_mint"
+      },
+      {
+        "from": "ARC-TESTNET",
+        "to": "HYPEREVM-TESTNET",
+        "transferId": "3c9681e0-52bf-4af7-8",
+        "amount": "0.035",
+        "fee": "0.001002",
+        "status": "pending_mint"
+      }
+    ]
+  },
+
+  "deposit_transactions": {
+    "arc_gateway_deposit": {
+      "chain": "ARC-TESTNET",
+      "txHash": "0xcb591d5f513f726f57f87560394a9f140555313dd9ab3f376969d92e0f563538",
+      "amount": "0.2",
+      "status": "confirmed"
+    },
+    "fuji_gateway_deposit": {
+      "chain": "AVALANCHE-FUJI",
+      "txHash": "0xa9971953d46d61c545ab7c6667b62da80fada6ba0442d34595e629b8c85bd4e9",
+      "amount": "0.05",
+      "status": "confirmed"
+    },
+    "base_gateway_deposit": {
+      "chain": "BASE-SEPOLIA",
+      "txHash": "0x32fed60e2c4445039dd95de1174ce65e12575ed9d788136c150bb26f901afa5d",
+      "amount": "0.05",
+      "status": "pending_confirmations",
+      "note": "Needs ~65 ETH block confirmations (~15 min)"
+    }
+  },
+
+  "x_to_arc_pending_test": [
+    "SONIC-TESTNET",
+    "SEI-ATLANTIC",
+    "HYPEREVM-TESTNET",
+    "BASE-SEPOLIA"
+  ],
+
+  "notes": {
+    "evm_mechanism_verified": true,
+    "all_8_evm_chains_connected": true,
+    "arc_to_all_chains_works": true,
+    "x_to_arc_same_mechanism": "Verified with Fuji, same EIP-712 signing works for all chains"
+  }
+}

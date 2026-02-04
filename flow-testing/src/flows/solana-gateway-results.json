@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2026-02-06T05:28:59.939Z",
+    "test": "Arc → Solana",
+    "success": true,
+    "direction": "ARC_TO_SOLANA",
+    "amount": "0.01",
+    "sourceChain": "ARC-TESTNET",
+    "destChain": "SOLANA-DEVNET",
+    "sourceBalanceBefore": "14.798938",
+    "sourceBalanceAfter": "14.787232",
+    "destBalanceBefore": "0.000000",
+    "destBalanceAfter": "0.000000",
+    "transferId": "63b82f5d-02c7-482e-ade5-d6bce91217cf",
+    "fees": {
+      "total": "0.001001",
+      "token": "USDC",
+      "perIntent": [
+        {
+          "transferSpecHash": "0xa3f226107207d0d4ad2a8b86e1cee351615d19ee925802e1e55d3e6c6e11cfff",
+          "domain": 26,
+          "baseFee": "0.001",
+          "transferFee": "0.000001"
+        }
+      ]
+    }
+  },
+  {
+    "timestamp": "2026-02-06T05:29:00.185Z",
+    "test": "Solana → Arc",
+    "success": false,
+    "direction": "SOLANA_TO_ARC",
+    "amount": "0.005",
+    "sourceChain": "SOLANA-DEVNET",
+    "destChain": "ARC-TESTNET",
+    "sourceBalanceBefore": "0.000000",
+    "sourceBalanceAfter": "0.000000",
+    "destBalanceBefore": "14.787232",
+    "destBalanceAfter": "14.787232",
+    "error": "Insufficient Solana USDC - waiting for Arc → Solana to settle"
+  }
+]
