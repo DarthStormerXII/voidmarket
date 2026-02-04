@@ -504,3 +504,510 @@ CREATE TABLE novas (
     winning_cluster_id INTEGER REFERENCES clusters(id),
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Nova Matches
+CREATE TABLE nova_matches (
+    id SERIAL PRIMARY KEY,
+    nova_id INTEGER REFERENCES novas(id),
+    round INTEGER NOT NULL,
+    star1_id INTEGER REFERENCES stars(id),
+    star2_id INTEGER REFERENCES stars(id),
+    market_id INTEGER REFERENCES markets(id),
+    status VARCHAR(20) DEFAULT 'PENDING', -- PENDING, ACTIVE, RESOLVED
+    winner_id INTEGER REFERENCES stars(id),
+    star1_photons INTEGER DEFAULT 0,
+    star2_photons INTEGER DEFAULT 0,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Transactions (for wallet history)
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    star_id INTEGER REFERENCES stars(id),
+    type VARCHAR(20) NOT NULL, -- DEPOSIT, WITHDRAW, BET, WINNINGS, NOVA_REWARD
+    amount DECIMAL(20, 6) NOT NULL,
+    source_chain VARCHAR(50),
+    destination_chain VARCHAR(50) DEFAULT 'ARC_TESTNET',
+    tx_hash VARCHAR(66),
+    cctp_message_hash VARCHAR(66),
+    status VARCHAR(20) DEFAULT 'PENDING', -- PENDING, CONFIRMED, FAILED
+    created_at TIMESTAMP DEFAULT NOW(),
+    confirmed_at TIMESTAMP
+);
+
+-- Indexes for performance
+CREATE INDEX idx_stars_telegram ON stars(telegram_id);
+CREATE INDEX idx_stars_wallet ON stars(wallet_address);
+CREATE INDEX idx_bets_market ON bets(market_id);
+CREATE INDEX idx_bets_bettor ON bets(bettor_id);
+CREATE INDEX idx_markets_status ON markets(status);
+CREATE INDEX idx_novas_status ON novas(status);
+CREATE INDEX idx_transactions_star ON transactions(star_id);
+```
+
+---
+
+## Telegram Bot Commands
+
+```typescript
+// Bot command handlers
+
+// /start - Begin registration
+bot.command('start', async (ctx) => {
+  const telegramId = ctx.from.id.toString();
+  const existingUser = await db.getStarByTelegramId(telegramId);
+
+  if (existingUser) {
+    return ctx.reply(`Welcome back, ${existingUser.username}! Use /help to see commands.`);
+  }
+
+  // Create Circle wallet
+  const wallet = await createDeveloperWallet(telegramId, 'ARC-TESTNET');
+
+  // Store in DB
+  await db.createStar({
+    telegramId,
+    walletAddress: wallet.address,
+    circleWalletId: wallet.id,
+  });
+
+  // Send Mini App link for profile setup
+  return ctx.reply(
+    'Welcome to VoidMarket! Your wallet has been created.\n' +
+    'Complete your profile to start betting:',
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '⭐ Create Profile', web_app: { url: MINI_APP_URL + '/onboarding' } }
+        ]]
+      }
+    }
+  );
+});
+
+// /balance - Check USDC balance
+bot.command('balance', async (ctx) => {
+  const star = await db.getStarByTelegramId(ctx.from.id.toString());
+  if (!star) return ctx.reply('Please /start first to create your wallet.');
+
+  const balance = await getArcBalances(star.walletAddress);
+  return ctx.reply(
+    `💰 Your Balance:\n` +
+    `${balance.erc20Formatted} USDC\n\n` +
+    `Wallet: ${star.walletAddress.slice(0,6)}...${star.walletAddress.slice(-4)}`
+  );
+});
+
+// /bet <market_id> - Open bet drawer for market
+bot.command('bet', async (ctx) => {
+  const marketId = ctx.match;
+  if (!marketId) return ctx.reply('Usage: /bet <market_id>');
+
+  const market = await db.getMarketById(parseInt(marketId));
+  if (!market) return ctx.reply('Market not found.');
+
+  return ctx.reply(
+    `📊 ${market.question}\n` +
+    `Pool: ${market.totalPool} USDC\n` +
+    `Deadline: ${market.deadline.toLocaleDateString()}`,
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '🎲 Place Bet', web_app: { url: MINI_APP_URL + `/markets/${marketId}` } }
+        ]]
+      }
+    }
+  );
+});
+
+// /reveal <market_id> - Reveal bet after resolution
+bot.command('reveal', async (ctx) => {
+  const marketId = ctx.match;
+  const star = await db.getStarByTelegramId(ctx.from.id.toString());
+
+  const bet = await db.getBetByMarketAndBettor(parseInt(marketId), star.id);
+  if (!bet || bet.revealed) return ctx.reply('No unrevealed bet found for this market.');
+
+  // Retrieve stored salt (this should be stored client-side, simplified for demo)
+  // In production, user needs to provide their salt
+  return ctx.reply(
+    'Your bet needs to be revealed!\n' +
+    'Open the app to reveal your bet direction:',
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '🔓 Reveal Bet', web_app: { url: MINI_APP_URL + `/mybets?reveal=${marketId}` } }
+        ]]
+      }
+    }
+  );
+});
+
+// /claim - Claim all pending winnings
+bot.command('claim', async (ctx) => {
+  const star = await db.getStarByTelegramId(ctx.from.id.toString());
+  const claimableBets = await db.getClaimableBets(star.id);
+
+  if (claimableBets.length === 0) {
+    return ctx.reply('No pending winnings to claim.');
+  }
+
+  const totalClaimable = claimableBets.reduce((sum, bet) => sum + bet.payout, 0);
+  return ctx.reply(
+    `🎉 You have ${claimableBets.length} winning bets to claim!\n` +
+    `Total: ${totalClaimable} USDC\n\n` +
+    `Claim now:`,
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '💸 Claim All', web_app: { url: MINI_APP_URL + `/mybets?claim=all` } }
+        ]]
+      }
+    }
+  );
+});
+
+// /profile - View star profile
+bot.command('profile', async (ctx) => {
+  const star = await db.getStarByTelegramId(ctx.from.id.toString());
+
+  return ctx.reply(
+    `⭐ ${star.username}\n` +
+    `Type: ${star.starType}\n` +
+    `Photons: ${star.photons}\n` +
+    `Bets: ${star.betsWon}/${star.totalBets} won\n` +
+    `Cluster: ${star.cluster?.name || 'None'}\n` +
+    `ENS: ${star.ensName || 'Not set'}`,
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '✏️ Edit Profile', web_app: { url: MINI_APP_URL + '/star' } }
+        ]]
+      }
+    }
+  );
+});
+
+// /cluster - Cluster management
+bot.command('cluster', async (ctx) => {
+  const star = await db.getStarByTelegramId(ctx.from.id.toString());
+
+  if (star.clusterId) {
+    const cluster = await db.getClusterById(star.clusterId);
+    return ctx.reply(
+      `🌌 ${cluster.name}\n` +
+      `Energy: ${cluster.energy}\n` +
+      `Members: ${cluster.memberCount}\n` +
+      `Novas: ${cluster.novasWon}/${cluster.totalNovas} won`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '👥 View Cluster', web_app: { url: MINI_APP_URL + '/clusters' } }
+          ]]
+        }
+      }
+    );
+  }
+
+  return ctx.reply(
+    'You are not in a cluster yet.\n' +
+    'Create or join one:',
+    {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '🆕 Create Cluster', web_app: { url: MINI_APP_URL + '/clusters/create' } },
+          { text: '🔍 Browse Clusters', web_app: { url: MINI_APP_URL + '/clusters' } }
+        ]]
+      }
+    }
+  );
+});
+
+// Notification helpers
+async function notifyMarketResolved(marketId: number) {
+  const bets = await db.getBetsByMarket(marketId);
+  const market = await db.getMarketById(marketId);
+
+  for (const bet of bets) {
+    const star = await db.getStarById(bet.bettorId);
+    await bot.api.sendMessage(
+      star.telegramId,
+      `🔔 Market Resolved!\n\n` +
+      `"${market.question}"\n` +
+      `Outcome: ${market.outcome ? 'YES' : 'NO'}\n\n` +
+      `Reveal your bet to see if you won!`,
+      {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🔓 Reveal Bet', web_app: { url: MINI_APP_URL + `/mybets?reveal=${marketId}` } }
+          ]]
+        }
+      }
+    );
+  }
+}
+```
+
+---
+
+## Flow Testing Implementation Details
+
+### Flow 1: User Registration & Setup
+
+**File**: `flow-testing/src/flows/01-user-registration.ts`
+
+```typescript
+/**
+ * User Registration Flow
+ *
+ * Steps:
+ * 1. User connects via Telegram (simulated with telegramId)
+ * 2. Create Circle developer wallet with RefID = telegramId
+ * 3. Wallet gets same address on Arc Testnet
+ * 4. Store mapping: telegramId → walletAddress
+ *
+ * Integrations:
+ * - Circle SDK (from playground-circle)
+ */
+
+export async function registerUser(telegramId: string): Promise<{
+  walletAddress: string;
+  walletId: string;
+  refId: string;
+}> {
+  // Use Circle SDK to create wallet
+  // RefID ensures deterministic address
+}
+```
+
+### Flow 2: Create Profile
+
+**File**: `flow-testing/src/flows/02-create-profile.ts`
+
+```typescript
+/**
+ * Profile Creation Flow
+ *
+ * Steps:
+ * 1. User selects star type (6 options)
+ * 2. User sets username
+ * 3. Profile stored off-chain (DB) + ENS subdomain registered
+ * 4. ENS: username.voidmarket.eth → profile data
+ *
+ * Integrations:
+ * - ENS CCIP-Read resolver
+ * - Database (PostgreSQL)
+ */
+
+export async function createProfile(params: {
+  walletAddress: string;
+  username: string;
+  starType: StarType;
+  bio?: string;
+}): Promise<{
+  profileId: string;
+  ensName: string;
+}> {
+  // Store in DB
+  // Register ENS subdomain via resolver
+}
+```
+
+### Flow 3: Create Regular Market
+
+**File**: `flow-testing/src/flows/03-create-regular-market.ts`
+
+```typescript
+/**
+ * Regular Market Creation Flow
+ *
+ * Steps:
+ * 1. User defines question, category, deadline
+ * 2. Call VoidMarketCore.createMarket()
+ * 3. Market registered on-chain
+ * 4. ENS: market-slug.voidmarket.eth → market data
+ *
+ * Integrations:
+ * - Circle SDK (sign tx)
+ * - VoidMarketCore contract
+ * - ENS resolver
+ */
+
+export async function createRegularMarket(params: {
+  creator: string;
+  question: string;
+  category: MarketCategory;
+  deadline: Date;
+  resolutionDeadline: Date;
+}): Promise<{
+  marketId: number;
+  txHash: string;
+  ensName: string;
+}> {
+  // Execute contract call via Circle
+}
+```
+
+### Flow 4: Bet on Regular Market
+
+**File**: `flow-testing/src/flows/04-bet-regular-market.ts`
+
+```typescript
+/**
+ * Betting Flow (Hidden Direction)
+ *
+ * Steps:
+ * 1. User selects YES or NO
+ * 2. Generate commitment: keccak256(direction, salt)
+ * 3. Store salt locally (user's device)
+ * 4. Call VoidMarketCore.placeBet(marketId, commitment, amount)
+ * 5. USDC transferred to contract
+ *
+ * Key: Server NEVER sees direction, only commitment hash
+ *
+ * Integrations:
+ * - Circle SDK (sign tx, transfer USDC)
+ * - VoidMarketCore contract
+ */
+
+export async function placeBet(params: {
+  bettor: string;
+  marketId: number;
+  direction: boolean;  // true = YES, false = NO
+  amount: bigint;
+}): Promise<{
+  commitment: string;
+  salt: string;        // Must be stored client-side
+  txHash: string;
+}> {
+  // Generate commitment
+  // Execute contract call via Circle
+}
+```
+
+### Flow 5: Create Forked Market
+
+**File**: `flow-testing/src/flows/05-create-forked-market.ts`
+
+```typescript
+/**
+ * Forked Market Creation Flow
+ *
+ * A forked market is a private market derived from a public one
+ *
+ * Steps:
+ * 1. Select existing public market as parent
+ * 2. Customize question/deadline if needed
+ * 3. Call VoidMarketCore.createForkedMarket()
+ * 4. Link to parent market for resolution
+ *
+ * Integrations:
+ * - Circle SDK
+ * - VoidMarketCore contract
+ */
+
+export async function createForkedMarket(params: {
+  creator: string;
+  parentMarketId: number;
+  customQuestion?: string;
+  deadline?: Date;
+}): Promise<{
+  forkedMarketId: number;
+  txHash: string;
+}> {
+  // Create forked market linked to parent
+}
+```
+
+### Flow 6: Bet on Forked Market
+
+**File**: `flow-testing/src/flows/06-bet-forked-market.ts`
+
+```typescript
+/**
+ * Forked Market Betting Flow
+ *
+ * Same as regular betting but:
+ * - Market is private (only invited users)
+ * - Resolution follows parent market
+ *
+ * Integrations:
+ * - Circle SDK
+ * - VoidMarketCore contract
+ */
+```
+
+### Flow 7: Resolve Market
+
+**File**: `flow-testing/src/flows/07-resolve-market.ts`
+
+```typescript
+/**
+ * Market Resolution Flow
+ *
+ * Steps:
+ * 1. Oracle/Admin determines outcome (YES/NO)
+ * 2. Call VoidMarketCore.resolveMarket(marketId, outcome)
+ * 3. Users can now reveal their bets
+ * 4. Users call revealBet() with direction + salt
+ * 5. Contract verifies commitment matches
+ * 6. Winners claim via claimWinnings()
+ *
+ * For forked markets:
+ * - Resolution follows parent market outcome
+ * - Auto-triggers when parent resolves
+ *
+ * Integrations:
+ * - Stork Oracle (price feeds)
+ * - Circle SDK
+ * - VoidMarketCore contract
+ */
+
+export async function resolveMarket(params: {
+  marketId: number;
+  outcome: boolean;
+  resolver: string;  // Oracle/admin address
+}): Promise<{
+  txHash: string;
+  totalWinners: number;
+  totalPayout: bigint;
+}> {
+  // Resolve market
+  // Handle forked markets cascade
+}
+
+export async function revealBet(params: {
+  marketId: number;
+  bettor: string;
+  direction: boolean;
+  salt: string;
+}): Promise<{
+  txHash: string;
+  isWinner: boolean;
+  payout: bigint;
+}> {
+  // Reveal and verify commitment
+}
+
+export async function claimWinnings(params: {
+  marketId: number;
+  claimer: string;
+}): Promise<{
+  txHash: string;
+  amount: bigint;
+}> {
+  // Claim winnings
+}
+```
+
+### Flow 8: Create Cluster
+
+**File**: `flow-testing/src/flows/08-create-cluster.ts`
+
+```typescript
+/**
+ * Cluster Creation Flow
+ *
