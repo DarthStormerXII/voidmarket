@@ -1011,3 +1011,525 @@ export async function claimWinnings(params: {
 /**
  * Cluster Creation Flow
  *
+ * Steps:
+ * 1. User defines cluster name
+ * 2. Choose public or private
+ * 3. Call ClusterManager.createCluster()
+ * 4. Creator becomes leader with initial photons
+ * 5. ENS: cluster-name.voidmarket.eth → cluster data
+ *
+ * Integrations:
+ * - Circle SDK
+ * - ClusterManager contract
+ * - ENS resolver
+ */
+
+export async function createCluster(params: {
+  leader: string;
+  name: string;
+  isPrivate: boolean;
+}): Promise<{
+  clusterId: number;
+  txHash: string;
+  ensName: string;
+}> {
+  // Create cluster on-chain
+}
+```
+
+### Flow 9: Invite to Cluster
+
+**File**: `flow-testing/src/flows/09-invite-to-cluster.ts`
+
+```typescript
+/**
+ * Cluster Invitation Flow
+ *
+ * Steps:
+ * 1. Leader generates invite for specific address
+ * 2. Call ClusterManager.inviteToCluster()
+ * 3. Returns invite code (valid for X time)
+ * 4. Invite sent to user via Telegram DM
+ *
+ * Integrations:
+ * - Circle SDK
+ * - ClusterManager contract
+ * - Telegram Bot API
+ */
+
+export async function inviteToCluster(params: {
+  clusterId: number;
+  inviter: string;
+  invitee: string;
+}): Promise<{
+  inviteCode: string;
+  expiresAt: Date;
+  txHash: string;
+}> {
+  // Generate and store invite
+}
+```
+
+### Flow 10: Join Cluster
+
+**File**: `flow-testing/src/flows/10-join-cluster.ts`
+
+```typescript
+/**
+ * Join Cluster Flow
+ *
+ * Steps:
+ * 1. User has invite code (for private) or cluster ID (for public)
+ * 2. Call ClusterManager.joinCluster()
+ * 3. User added as member with 0 photons
+ * 4. Cluster energy updated
+ *
+ * Integrations:
+ * - Circle SDK
+ * - ClusterManager contract
+ */
+
+export async function joinCluster(params: {
+  clusterId: number;
+  member: string;
+  inviteCode?: string;  // Required for private clusters
+}): Promise<{
+  txHash: string;
+  memberCount: number;
+}> {
+  // Join cluster
+}
+```
+
+### Flow 11: Start Nova
+
+**File**: `flow-testing/src/flows/11-start-nova.ts`
+
+```typescript
+/**
+ * Nova Start Flow
+ *
+ * Steps:
+ * 1. Two clusters agree to battle
+ * 2. Define number of rounds, prize pool
+ * 3. Call NovaManager.startNova()
+ * 4. Each round: matched 1v1 between members
+ * 5. Each match linked to a prediction market
+ *
+ * Integrations:
+ * - Circle SDK
+ * - NovaManager contract
+ * - VoidMarketCore (creates linked markets)
+ */
+
+export async function startNova(params: {
+  cluster1Id: number;
+  cluster2Id: number;
+  totalRounds: number;
+  prizePool: bigint;
+  initiator: string;
+}): Promise<{
+  novaId: number;
+  matches: Array<{
+    round: number;
+    star1: string;
+    star2: string;
+    marketId: number;
+  }>;
+  txHash: string;
+}> {
+  // Start nova, create matches
+}
+```
+
+### Flow 12: Nova Rounds
+
+**File**: `flow-testing/src/flows/12-nova-rounds.ts`
+
+```typescript
+/**
+ * Nova Round Execution Flow
+ *
+ * Each round:
+ * 1. Both stars in match place bets on linked market
+ * 2. Market resolves (oracle)
+ * 3. Winner gets photons based on bet performance
+ * 4. Match result recorded
+ * 5. Advance to next round
+ *
+ * Integrations:
+ * - Circle SDK
+ * - NovaManager contract
+ * - VoidMarketCore contract
+ */
+
+export async function executeNovaRound(params: {
+  novaId: number;
+  round: number;
+}): Promise<{
+  matches: Array<{
+    star1Photons: number;
+    star2Photons: number;
+    winner: string;
+  }>;
+  roundWinner: number;  // Cluster ID
+}> {
+  // Execute all matches in round
+}
+```
+
+### Flow 13: Nova Resolution
+
+**File**: `flow-testing/src/flows/13-nova-resolution.ts`
+
+```typescript
+/**
+ * Nova Resolution & Rewards Flow
+ *
+ * Steps:
+ * 1. All rounds completed
+ * 2. Tally photons per cluster
+ * 3. Winning cluster gets energy boost
+ * 4. Individual rewards based on photon contribution
+ * 5. USDC distributed to winners
+ *
+ * Integrations:
+ * - Circle SDK
+ * - NovaManager contract
+ * - ClusterManager contract
+ */
+
+export async function resolveNova(params: {
+  novaId: number;
+}): Promise<{
+  winningClusterId: number;
+  rewards: Array<{
+    address: string;
+    photonsEarned: number;
+    usdcReward: bigint;
+  }>;
+  clusterEnergyDelta: number;
+  txHash: string;
+}> {
+  // Resolve nova, distribute rewards
+}
+```
+
+---
+
+## Integration Patterns from Playgrounds
+
+### Circle SDK (from playground-circle)
+
+```typescript
+// Wallet creation with RefID
+import { createDeveloperWallet, createUnifiedWallets } from './services/circle/wallet';
+
+// CCTP bridging
+import { executeCCTPBridge, waitForAttestation } from './services/circle/cctp';
+
+// Transaction execution
+import { executeContractCall, transferUSDC } from './services/circle/transactions';
+
+// Arc testnet utilities
+import {
+  getArcBalances,
+  nativeToERC20,
+  erc20ToNative,
+  isArcChain
+} from './services/circle/arc-helpers';
+```
+
+### LiFi SDK (from playground-lifi)
+
+```typescript
+// For chains not supported by Circle CCTP
+import { getComposerQuote, executeComposerRoute } from './services/lifi/quotes';
+
+// Use only as fallback when CCTP unavailable
+const shouldUseLifi = !isCCTPSupported(sourceChain);
+```
+
+### Deposit Router Logic
+
+```typescript
+/**
+ * Deposit Router
+ *
+ * Priority:
+ * 1. Circle CCTP - Sepolia, Base Sepolia, Arbitrum Sepolia, Arc Testnet
+ * 2. LiFi - All other chains (mainnet only, so may need testnet alternative)
+ */
+
+export async function depositToArc(params: {
+  sourceChain: number;
+  amount: bigint;
+  userAddress: string;
+}): Promise<DepositResult> {
+  if (isCCTPSupported(params.sourceChain)) {
+    return executeCCTPBridge({
+      fromChain: params.sourceChain,
+      toChain: ARC_TESTNET_CHAIN_ID,
+      amount: params.amount,
+      recipient: params.userAddress,
+    });
+  } else {
+    // LiFi fallback (mainnet only)
+    return executeLiFiBridge({
+      fromChain: params.sourceChain,
+      toChain: ARC_TESTNET_CHAIN_ID,
+      amount: params.amount,
+      recipient: params.userAddress,
+    });
+  }
+}
+```
+
+---
+
+## Testing Strategy
+
+### Test Categories
+
+1. **Unit Tests** - Individual service functions
+2. **Integration Tests** - Each flow in isolation
+3. **E2E Tests** - Complete user journeys
+
+### E2E Scenarios
+
+```typescript
+// Scenario 1: Complete betting journey
+test('User registers, creates market, places bet, wins', async () => {
+  // 1. Register user
+  const user = await registerUser('telegram_123');
+
+  // 2. Create profile
+  await createProfile({ walletAddress: user.walletAddress, username: 'star_alpha', starType: 'neutron' });
+
+  // 3. Deposit USDC (simulated or via faucet)
+  await fundWallet(user.walletAddress, parseUnits('100', 6));
+
+  // 4. Create market
+  const market = await createRegularMarket({
+    creator: user.walletAddress,
+    question: 'Will ETH hit $5000 by end of month?',
+    category: 'crypto',
+    deadline: addDays(new Date(), 7),
+    resolutionDeadline: addDays(new Date(), 8),
+  });
+
+  // 5. Place bet
+  const bet = await placeBet({
+    bettor: user.walletAddress,
+    marketId: market.marketId,
+    direction: true, // YES
+    amount: parseUnits('10', 6),
+  });
+
+  // 6. Resolve market (simulated oracle)
+  await resolveMarket({
+    marketId: market.marketId,
+    outcome: true, // YES won
+    resolver: ORACLE_ADDRESS,
+  });
+
+  // 7. Reveal bet
+  const reveal = await revealBet({
+    marketId: market.marketId,
+    bettor: user.walletAddress,
+    direction: true,
+    salt: bet.salt,
+  });
+
+  // 8. Claim winnings
+  const claim = await claimWinnings({
+    marketId: market.marketId,
+    claimer: user.walletAddress,
+  });
+
+  expect(claim.amount).toBeGreaterThan(parseUnits('10', 6));
+});
+
+// Scenario 2: Nova battle between clusters
+test('Two clusters complete a Nova battle', async () => {
+  // Setup: Create 2 clusters with 3 members each
+  // Start Nova with 3 rounds
+  // Execute each round
+  // Verify winner gets energy + rewards
+});
+
+// Scenario 3: Cross-chain deposit
+test('User deposits USDC from Sepolia to Arc via CCTP', async () => {
+  // 1. User has USDC on Sepolia
+  // 2. Initiate CCTP bridge
+  // 3. Wait for attestation
+  // 4. Complete on Arc
+  // 5. Verify balance on Arc
+});
+```
+
+---
+
+## Environment Variables
+
+```env
+# Circle SDK
+CIRCLE_API_KEY=TEST_API_KEY:...
+CIRCLE_ENTITY_SECRET=...
+CIRCLE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
+CIRCLE_CLIENT_KEY=TEST_CLIENT_KEY:...
+
+# Arc Testnet
+ARC_TESTNET_RPC_URL=https://rpc.testnet.arc.network
+ARC_CHAIN_ID=5042002
+
+# Other Testnets
+SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/...
+BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/...
+
+# ENS (Sepolia)
+ENS_GATEWAY_URL=http://localhost:3001
+ENS_REGISTRY_ADDRESS=0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e
+VOIDMARKET_ENS_DOMAIN=voidmarket.eth
+
+# LiFi (mainnet fallback - for chains CCTP doesn't support)
+LIFI_API_KEY=...
+LIFI_INTEGRATOR=voidmarket
+
+# PostgreSQL Database
+DATABASE_URL=postgresql://postgres:password@localhost:5432/voidmarket
+DATABASE_HOST=localhost
+DATABASE_PORT=5432
+DATABASE_NAME=voidmarket
+DATABASE_USER=postgres
+DATABASE_PASSWORD=password
+
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_WEBHOOK_URL=https://your-domain.com/webhook
+
+# Admin wallet (for market resolution)
+ADMIN_PRIVATE_KEY=...
+
+# Contracts (populated after deployment)
+VOIDMARKET_CORE_ADDRESS=
+CLUSTER_MANAGER_ADDRESS=
+NOVA_MANAGER_ADDRESS=
+VOIDMARKET_RESOLVER_ADDRESS=
+```
+
+---
+
+## Implementation Phases
+
+### Phase 1: Foundation (Contracts + Infrastructure)
+1. Create contracts/ directory with Foundry project
+2. Write and test smart contracts locally
+3. Deploy contracts to Arc Testnet
+4. Set up PostgreSQL database with Drizzle ORM
+5. Set up Circle wallet service (from playground)
+6. Set up Arc testnet helpers (from playground)
+
+### Phase 2: Core Services
+1. Circle wallet creation & management
+2. Circle transaction execution
+3. Circle CCTP bridging
+4. Database queries and migrations
+5. ENS gateway server (CCIP-Read)
+6. Telegram bot setup
+
+### Phase 3: User Flows (1-7)
+1. User registration flow
+2. Profile creation + ENS subdomain
+3. Market creation (regular)
+4. Betting with commitments
+5. Forked market creation
+6. Market resolution (admin) + reveals
+7. Winnings claims
+
+### Phase 4: Cluster & Nova (8-13)
+1. Cluster creation + management
+2. Invite system
+3. Join cluster flow
+4. Nova battle start
+5. Nova round execution
+6. Nova resolution + rewards
+
+### Phase 5: Cross-Chain Deposits
+1. Circle CCTP integration (Sepolia, Base Sepolia → Arc)
+2. LiFi fallback integration (other chains)
+3. Deposit router with chain detection
+
+### Phase 6: Telegram Bot Commands
+1. /start - Registration flow
+2. /balance - Check USDC balance
+3. /bet <market> <amount> - Place bet (opens Mini App)
+4. /reveal <market> - Reveal bet after resolution
+5. /claim - Claim winnings
+6. /profile - View star profile
+7. /cluster - Cluster management
+8. Notification system for market resolution
+
+### Phase 7: E2E Testing & Validation
+1. Unit tests for all services
+2. Integration tests per flow
+3. Full E2E scenarios (multi-user)
+4. Edge cases and error handling
+5. Performance testing
+
+---
+
+## Dependencies
+
+```json
+{
+  "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^4.0.0",
+    "@lifi/sdk": "^3.0.0",
+    "viem": "^2.0.0",
+    "ethers": "^6.0.0",
+    "@ensdomains/ensjs": "^4.0.0",
+    "zod": "^3.22.0",
+    "dotenv": "^16.0.0",
+    "grammy": "^1.21.0",
+    "drizzle-orm": "^0.29.0",
+    "postgres": "^3.4.0",
+    "express": "^4.18.0",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "drizzle-kit": "^0.20.0",
+    "tsx": "^4.0.0"
+  }
+}
+```
+
+---
+
+## Design Decisions
+
+Based on requirements:
+
+1. **Market Resolution**: **Admin-controlled** - Simpler for testing, admin manually resolves markets. Can add Stork oracle integration later for production.
+
+2. **ENS Resolver**: **ENS on Sepolia** - Deploy CCIP-Read resolver to real ENS testnet for realistic testing. Requires ENS name ownership (voidmarket.eth or subdomain).
+
+3. **Database**: **PostgreSQL** - Production-ready setup for off-chain data (profiles, clusters, bets, transactions).
+
+4. **Telegram Bot**: **Included** - Full flow testing including /bet, /balance, /create commands via Telegram Bot API.
+
+---
+
+## Success Criteria
+
+Each flow test should:
+- ✅ Execute without mocks (real Circle SDK, real contracts)
+- ✅ Verify state changes on-chain
+- ✅ Handle errors gracefully
+- ✅ Be repeatable (proper cleanup/reset)
+- ✅ Log detailed execution traces
+
+When all 13 flows pass E2E tests, we can confidently integrate into the frontend.
