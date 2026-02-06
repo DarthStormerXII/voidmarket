@@ -5,6 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { VoidBlackHole } from "@/components/ui/void-black-hole";
 import { TelegramProvider } from "@/components/providers/telegram-provider";
+import { WalletProvider } from "@/components/providers/wallet-provider";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
@@ -67,11 +68,13 @@ export default function RootLayout({
         className={`${spaceGrotesk.variable} ${orbitron.variable} ${inter.variable} ${jetbrainsMono.variable} antialiased min-h-screen`}
       >
         <TelegramProvider>
-          <VoidBlackHole />
-          <div className="relative z-10">
-            {children}
-          </div>
-          <Toaster />
+          <WalletProvider>
+            <VoidBlackHole />
+            <div className="relative z-10">
+              {children}
+            </div>
+            <Toaster />
+          </WalletProvider>
         </TelegramProvider>
       </body>
     </html>
