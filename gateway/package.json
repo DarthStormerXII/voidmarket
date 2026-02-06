@@ -6,19 +6,22 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
+    "@prisma/client": "^6.2.1",
     "cors": "^2.8.5",
-    "express": "^4.21.1",
     "ethers": "^6.13.4",
-    "@prisma/client": "^6.2.1"
+    "express": "^4.21.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
   }
 }
