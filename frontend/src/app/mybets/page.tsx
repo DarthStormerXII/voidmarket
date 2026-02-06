@@ -7,7 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { BetCard } from "@/components/market/bet-card"
 import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockUserBets } from "@/lib/mock-data"
+import { useUserBets } from "@/hooks/use-user-bets"
+import { toBet } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { BetStatus } from "@/types"
 import { haptics } from "@/lib/haptics"
@@ -21,8 +22,11 @@ const filterTabs: { id: BetStatus | "all"; label: string }[] = [
 
 export default function MyBetsPage() {
   const [selectedFilter, setSelectedFilter] = useState<BetStatus | "all">("all")
+  const { bets: apiBets, isLoading } = useUserBets()
 
-  const filteredBets = mockUserBets.filter(bet => {
+  const allBets = apiBets.map(b => toBet(b))
+
+  const filteredBets = allBets.filter(bet => {
     if (selectedFilter === "all") return true
     if (selectedFilter === "in_void") return bet.status === "in_void" || bet.status === "claimable"
     if (selectedFilter === "won") return bet.status === "won" || bet.status === "claimable"
@@ -30,16 +34,15 @@ export default function MyBetsPage() {
   })
 
   const stats = {
-    inVoid: mockUserBets.filter(b => b.status === "in_void").length,
-    claimable: mockUserBets.filter(b => b.status === "claimable").length,
-    resolved: mockUserBets.filter(b => b.status === "won" || b.status === "lost").length,
-    totalWon: mockUserBets
+    inVoid: allBets.filter(b => b.status === "in_void").length,
+    claimable: allBets.filter(b => b.status === "claimable").length,
+    resolved: allBets.filter(b => b.status === "won" || b.status === "lost").length,
+    totalWon: allBets
       .filter(b => b.status === "won" || b.status === "claimable")
       .reduce((acc, b) => acc + (b.payout || 0), 0),
   }
 
   const handleClaim = (betId: string) => {
-    // Handle claim logic
     console.log("Claiming bet:", betId)
   }
 
@@ -116,7 +119,14 @@ export default function MyBetsPage() {
         <div className="h-px bg-void-surface" />
 
         {/* Bets List */}
-        {filteredBets.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <VoidLogo size="md" className="mx-auto mb-3 animate-pulse" />
+            <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
+              SCANNING THE VOID...
+            </p>
+          </div>
+        ) : filteredBets.length > 0 ? (
           <div className="space-y-3">
             {filteredBets.map(bet => (
               <BetCard key={bet.id} bet={bet} onClaim={handleClaim} />

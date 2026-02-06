@@ -9,8 +9,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { VoidStatsCard } from "@/components/market/void-stats-card"
 import { CountdownTimer } from "@/components/market/countdown-timer"
 import { PlaceBetDrawer } from "@/components/market/place-bet-drawer"
+import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockMarkets, mockUserBets, mockUserBalance } from "@/lib/mock-data"
+import { useMarket } from "@/hooks/use-market"
+import { useUserBets } from "@/hooks/use-user-bets"
+import { useWallet } from "@/components/providers/wallet-provider"
+import { toMarket, toBet } from "@/lib/adapters"
 import { CATEGORY_CONFIG } from "@/types"
 import { haptics } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
@@ -21,16 +25,30 @@ interface MarketDetailPageProps {
 
 export default function MarketDetailPage({ params }: MarketDetailPageProps) {
   const { id } = use(params)
-  const market = mockMarkets.find(m => m.id === id)
-  const userBet = mockUserBets.find(b => b.marketId === id)
+  const { market: apiMarket, bets: apiBets, isLoading } = useMarket(id)
+  const { bets: userApiBets } = useUserBets()
+  const { arcBalance } = useWallet()
 
-  if (!market) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <VoidLogo size="md" className="animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!apiMarket) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground uppercase">MARKET NOT FOUND</p>
       </div>
     )
   }
+
+  const market = toMarket(apiMarket)
+  const userBet = userApiBets
+    .filter(b => b.marketId === apiMarket.id)
+    .map(b => toBet(b, apiMarket.status))[0]
 
   const category = CATEGORY_CONFIG[market.category]
 
@@ -161,7 +179,7 @@ export default function MarketDetailPage({ params }: MarketDetailPageProps) {
 
       {/* Sticky CTA */}
       <div className="fixed bottom-20 left-0 right-0 z-30 p-4 bg-background/95 backdrop-blur-lg border-t border-void-surface">
-        <PlaceBetDrawer market={market} userBalance={mockUserBalance}>
+        <PlaceBetDrawer market={market} userBalance={arcBalance}>
           <Button variant="default" size="xl" className="w-full">
             PLACE YOUR BET
           </Button>

@@ -6,8 +6,10 @@ import Link from "next/link"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MarketCard } from "@/components/market/market-card"
+import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockMarkets } from "@/lib/mock-data"
+import { useMarkets } from "@/hooks/use-markets"
+import { toMarket } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { MarketCategory, CATEGORY_CONFIG } from "@/types"
 import { haptics } from "@/lib/haptics"
@@ -24,7 +26,10 @@ export default function MarketsPage() {
   const [selectedCategory, setSelectedCategory] = useState<MarketCategory | "all">("all")
   const [selectedSort, setSelectedSort] = useState("hot")
 
-  const filteredMarkets = mockMarkets
+  const { markets: apiMarkets, isLoading } = useMarkets()
+
+  const filteredMarkets = apiMarkets
+    .map(toMarket)
     .filter(m => m.status === "active")
     .filter(m => selectedCategory === "all" || m.category === selectedCategory)
     .filter(m => m.title.toLowerCase().includes(search.toLowerCase()))
@@ -117,7 +122,14 @@ export default function MarketsPage() {
 
       {/* Markets List */}
       <div className="px-4 pt-6 space-y-3">
-        {filteredMarkets.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <VoidLogo size="md" className="mx-auto mb-3 animate-pulse" />
+            <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
+              SCANNING THE VOID...
+            </p>
+          </div>
+        ) : filteredMarkets.length > 0 ? (
           filteredMarkets.map((market) => (
             <MarketCard key={market.id} market={market} />
           ))

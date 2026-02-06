@@ -16,19 +16,19 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { StarAvatar, STAR_TYPE_NAMES } from "@/components/ui/star-avatar"
 import { BetCard } from "@/components/market/bet-card"
+import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import {
-  mockStar,
-  mockUserBets,
-  mockChainBalances,
-  mockClusters
-} from "@/lib/mock-data"
+import { useStar } from "@/hooks/use-star"
+import { useUserBets } from "@/hooks/use-user-bets"
+import { useWallet } from "@/components/providers/wallet-provider"
+import { useClusters } from "@/hooks/use-clusters"
+import { toBet, toCluster, getStarTypeFromAddress } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
-import { BetStatus } from "@/types"
+import { BetStatus, StarType } from "@/types"
+import { useTelegram } from "@/components/providers/telegram-provider"
 
 const betFilterTabs: { id: BetStatus | "all"; label: string }[] = [
   { id: "all", label: "ALL" },
@@ -41,23 +41,41 @@ export default function StarPage() {
   const [copied, setCopied] = useState(false)
   const [selectedBetFilter, setSelectedBetFilter] = useState<BetStatus | "all">("all")
 
-  // Calculate total balance across chains
-  const totalBalance = mockChainBalances.reduce((acc, chain) => acc + chain.balance, 0)
+  const { user } = useTelegram()
+  const { star, isLoading: starLoading } = useStar()
+  const { bets: apiBets, isLoading: betsLoading } = useUserBets()
+  const { address, totalBalance, arcBalance } = useWallet()
+  const { clusters: apiClusters } = useClusters()
 
-  // Get user's cluster
-  const userCluster = mockClusters.find(c => c.id === mockStar.clusterId)
+  // Derive star info from available data
+  const starName = star?.name || user?.username?.toUpperCase() || "ANONYMOUS STAR"
+  const starType: StarType = star?.starType || (address ? getStarTypeFromAddress(address) : "yellow-sun")
+  const photons = star?.totalPhotons || 0
+  const starDescription = star?.description
+
+  // Find user's cluster
+  const userCluster = star?.clusterId
+    ? apiClusters.find(c => c.id === star.clusterId)
+    : undefined
+
+  const allBets = apiBets.map(b => toBet(b))
 
   // Filter bets
-  const filteredBets = mockUserBets.filter(bet => {
+  const filteredBets = allBets.filter(bet => {
     if (selectedBetFilter === "all") return true
     if (selectedBetFilter === "in_void") return bet.status === "in_void" || bet.status === "claimable"
     if (selectedBetFilter === "won") return bet.status === "won" || bet.status === "claimable"
     return bet.status === selectedBetFilter
   })
 
+  const displayAddress = address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : "Loading..."
+
   const handleCopyAddress = () => {
+    if (!address) return
     haptics.buttonTap()
-    navigator.clipboard.writeText(mockStar.address)
+    navigator.clipboard.writeText(address)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -87,26 +105,26 @@ export default function StarPage() {
         <Card className="bg-void-mid border-primary/20 overflow-hidden">
           <CardContent className="p-6">
             <div className="flex flex-col items-center">
-              <StarAvatar starType={mockStar.starType} size="xl" showGlow />
+              <StarAvatar starType={starType} size="xl" showGlow />
 
               <h2 className="font-[family-name:var(--font-display)] text-xl font-bold text-foreground uppercase mt-4 tracking-wider">
-                {mockStar.name}
+                {starName}
               </h2>
 
               <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase mt-1">
-                {STAR_TYPE_NAMES[mockStar.starType]}
+                {STAR_TYPE_NAMES[starType]}
               </p>
 
-              {mockStar.bio && (
+              {starDescription && (
                 <p className="font-[family-name:var(--font-body)] text-sm text-muted-foreground text-center mt-3 max-w-xs">
-                  {mockStar.bio}
+                  {starDescription}
                 </p>
               )}
 
               {/* Address */}
               <div className="flex items-center gap-2 mt-4 p-2 rounded-lg bg-void-surface">
                 <span className="font-[family-name:var(--font-mono)] text-xs text-foreground">
-                  {mockStar.address}
+                  {displayAddress}
                 </span>
                 <button
                   onClick={handleCopyAddress}
@@ -118,14 +136,16 @@ export default function StarPage() {
                     <Copy className="h-3 w-3 text-muted-foreground" />
                   )}
                 </button>
-                <a
-                  href={`https://etherscan.io/address/${mockStar.address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="p-1 rounded hover:bg-void-mid transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                </a>
+                {address && (
+                  <a
+                    href={`https://explorer-testnet.arc.circle.com/address/${address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1 rounded hover:bg-void-mid transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                  </a>
+                )}
               </div>
 
               {/* Stats Row */}
@@ -133,7 +153,7 @@ export default function StarPage() {
                 <div className="flex items-center gap-1">
                   <Sparkles className="h-4 w-4 text-white" />
                   <span className="font-[family-name:var(--font-display)] text-sm font-bold text-foreground">
-                    {mockStar.totalPhotons}
+                    {photons}
                   </span>
                   <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase">
                     PHOTONS
@@ -164,7 +184,7 @@ export default function StarPage() {
                         </span>
                         <span className="text-muted-foreground">|</span>
                         <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
-                          {userCluster.members.length} MEMBERS
+                          {userCluster.memberCount} MEMBERS
                         </span>
                       </div>
                     </div>
@@ -181,7 +201,7 @@ export default function StarPage() {
         {/* Balance Section */}
         <div>
           <h3 className="font-[family-name:var(--font-display)] text-xs text-muted-foreground tracking-widest uppercase mb-3">
-            UNIFIED BALANCE
+            BALANCE
           </h3>
 
           <Card className="bg-void-deep border-void-surface">
@@ -191,25 +211,8 @@ export default function StarPage() {
                   {totalBalance.toFixed(2)} USDC
                 </p>
                 <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase mt-1">
-                  ACROSS ALL CHAINS
+                  ARC TESTNET
                 </p>
-              </div>
-
-              {/* Chain Breakdown */}
-              <div className="space-y-2 mb-4">
-                {mockChainBalances.map((chain) => (
-                  <div
-                    key={chain.chainId}
-                    className="flex items-center justify-between p-2 rounded-lg bg-void-surface"
-                  >
-                    <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase">
-                      {chain.chainName}
-                    </span>
-                    <span className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground">
-                      {chain.balance.toFixed(2)} {chain.symbol}
-                    </span>
-                  </div>
-                ))}
               </div>
 
               {/* Action Buttons */}
@@ -238,7 +241,7 @@ export default function StarPage() {
             <div className="flex items-center gap-1">
               <Trophy className="h-4 w-4 text-white" />
               <span className="font-[family-name:var(--font-display)] text-sm font-bold text-foreground">
-                {mockUserBets.filter(b => b.status === "won" || b.status === "claimable").length}
+                {allBets.filter(b => b.status === "won" || b.status === "claimable").length}
               </span>
               <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase">
                 WON
@@ -268,7 +271,11 @@ export default function StarPage() {
           </div>
 
           {/* Bets List */}
-          {filteredBets.length > 0 ? (
+          {betsLoading ? (
+            <div className="text-center py-8">
+              <VoidLogo size="md" className="mx-auto mb-3 animate-pulse" />
+            </div>
+          ) : filteredBets.length > 0 ? (
             <div className="space-y-3">
               {filteredBets.map(bet => (
                 <BetCard key={bet.id} bet={bet} onClaim={handleClaim} />

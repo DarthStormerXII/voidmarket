@@ -6,17 +6,19 @@ import { ChevronLeft, GitFork, Plus, Search, Lock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockMarkets } from "@/lib/mock-data"
+import { useMarkets } from "@/hooks/use-markets"
+import { toMarket } from "@/lib/adapters"
 import { CATEGORY_CONFIG } from "@/types"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
 
 export default function CreatePage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const { markets: apiMarkets, isLoading } = useMarkets({ status: "active" })
 
-  // Filter active markets for forking
-  const activeMarkets = mockMarkets.filter(m => m.status === "active")
+  const activeMarkets = apiMarkets.map(toMarket)
 
   const filteredMarkets = activeMarkets.filter(market =>
     market.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -105,41 +107,50 @@ export default function CreatePage() {
           </div>
 
           {/* Markets List */}
-          <div className="space-y-3">
-            {filteredMarkets.map(market => (
-              <Link
-                key={market.id}
-                href={`/create/fork/${market.id}`}
-                onClick={() => haptics.buttonTap()}
-              >
-                <Card className="bg-void-deep border-void-surface hover:border-white/30 transition-colors">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <Badge variant="outline" className="mb-2 text-[10px]">
-                          {CATEGORY_CONFIG[market.category].label}
-                        </Badge>
-                        <h4 className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground uppercase leading-tight">
-                          {market.title}
-                        </h4>
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
-                            {market.totalBets} BETS
-                          </span>
-                          <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
-                            {market.totalPool} USDC
-                          </span>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <VoidLogo size="md" className="mx-auto mb-3 animate-pulse" />
+              <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
+                LOADING...
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredMarkets.map(market => (
+                <Link
+                  key={market.id}
+                  href={`/create/fork/${market.id}`}
+                  onClick={() => haptics.buttonTap()}
+                >
+                  <Card className="bg-void-deep border-void-surface hover:border-white/30 transition-colors">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <Badge variant="outline" className="mb-2 text-[10px]">
+                            {CATEGORY_CONFIG[market.category].label}
+                          </Badge>
+                          <h4 className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground uppercase leading-tight">
+                            {market.title}
+                          </h4>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
+                              {market.totalBets} BETS
+                            </span>
+                            <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
+                              {market.totalPool} USDC
+                            </span>
+                          </div>
                         </div>
+                        <GitFork className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                       </div>
-                      <GitFork className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
 
-          {filteredMarkets.length === 0 && (
+          {!isLoading && filteredMarkets.length === 0 && (
             <div className="text-center py-8">
               <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
                 NO MARKETS FOUND

@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -14,25 +13,48 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { ClusterMemberCard } from "@/components/cluster/cluster-member-card"
-import { NovaCard } from "@/components/cluster/nova-card"
 import { BottomNav } from "@/components/layout/bottom-nav"
 import { VoidLogo } from "@/components/ui/void-logo"
-import {
-  mockStar,
-  mockClusters,
-  mockNova,
-  mockTopClusters
-} from "@/lib/mock-data"
+import { useStar } from "@/hooks/use-star"
+import { useCluster } from "@/hooks/use-cluster"
+import { useClusters } from "@/hooks/use-clusters"
+import { toCluster } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
 
 export default function ClustersPage() {
   const router = useRouter()
 
-  // Check if user is in a cluster
-  const userCluster = mockClusters.find(c => c.id === mockStar.clusterId)
+  const { star, isLoading: starLoading } = useStar()
+  const { cluster: apiCluster, members: apiMembers, isLoading: clusterLoading } = useCluster(star?.clusterId ?? null)
+  const { clusters: topApiClusters, isLoading: topClustersLoading } = useClusters({ sort: "energy", limit: 5 })
+
+  const isLoading = starLoading || clusterLoading
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen pb-24">
+        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-lg border-b border-void-surface">
+          <div className="flex items-center justify-between h-14 px-4">
+            <Link href="/" className="p-2 -ml-2" onClick={() => haptics.buttonTap()}>
+              <ChevronLeft className="h-6 w-6 text-muted-foreground" />
+            </Link>
+            <h1 className="font-[family-name:var(--font-display)] text-lg font-semibold uppercase tracking-wider">
+              CLUSTERS
+            </h1>
+            <div className="w-10" />
+          </div>
+        </header>
+        <div className="flex items-center justify-center pt-20">
+          <VoidLogo size="md" className="animate-pulse" />
+        </div>
+        <BottomNav />
+      </div>
+    )
+  }
+
+  const userCluster = apiCluster ? toCluster(apiCluster, apiMembers) : null
 
   // Sort members by photons for ranking
   const sortedMembers = userCluster
@@ -111,38 +133,16 @@ export default function ClustersPage() {
               </CardContent>
             </Card>
 
-            {/* Current Nova */}
-            {mockNova && mockNova.status === "active" && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Swords className="h-4 w-4 text-white" />
-                  <span className="font-[family-name:var(--font-display)] text-xs text-muted-foreground tracking-widest uppercase">
-                    ACTIVE NOVA
-                  </span>
-                </div>
-                <NovaCard
-                  nova={mockNova}
-                  userClusterId={mockStar.clusterId}
-                  onClick={() => {
-                    haptics.buttonTap()
-                    router.push(`/clusters/nova/${mockNova.id}`)
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Start Nova Button (if not in nova) */}
-            {!userCluster.currentNovaId && (
-              <Button
-                variant="default"
-                size="lg"
-                onClick={handleStartNova}
-                className="w-full"
-              >
-                <Swords className="mr-2 h-5 w-5" />
-                START NOVA
-              </Button>
-            )}
+            {/* Start Nova Button */}
+            <Button
+              variant="default"
+              size="lg"
+              onClick={handleStartNova}
+              className="w-full"
+            >
+              <Swords className="mr-2 h-5 w-5" />
+              START NOVA
+            </Button>
 
             <div className="h-px bg-void-surface" />
 
@@ -224,41 +224,47 @@ export default function ClustersPage() {
                 </span>
               </div>
 
-              <div className="space-y-2">
-                {mockTopClusters.map((cluster, index) => (
-                  <Card key={cluster.id} className="bg-void-deep border-void-surface">
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center font-[family-name:var(--font-display)] text-sm font-bold",
-                          index === 0 && "bg-white/20 text-white",
-                          index === 1 && "bg-white/10 text-white/80",
-                          index === 2 && "bg-void-surface text-white/60",
-                          index > 2 && "bg-void-surface text-muted-foreground"
-                        )}>
-                          {index + 1}
-                        </div>
+              {topClustersLoading ? (
+                <div className="text-center py-8">
+                  <VoidLogo size="md" className="mx-auto mb-3 animate-pulse" />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {topApiClusters.map((cluster, index) => (
+                    <Card key={cluster.id} className="bg-void-deep border-void-surface">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center font-[family-name:var(--font-display)] text-sm font-bold",
+                            index === 0 && "bg-white/20 text-white",
+                            index === 1 && "bg-white/10 text-white/80",
+                            index === 2 && "bg-void-surface text-white/60",
+                            index > 2 && "bg-void-surface text-muted-foreground"
+                          )}>
+                            {index + 1}
+                          </div>
 
-                        <div className="flex-1 min-w-0">
-                          <p className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground uppercase truncate">
-                            {cluster.name}
-                          </p>
-                          <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
-                            {cluster.members.length} MEMBERS | {cluster.novasWon} WINS
-                          </p>
-                        </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground uppercase truncate">
+                              {cluster.name}
+                            </p>
+                            <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
+                              {cluster.memberCount} MEMBERS | {cluster.novasWon} WINS
+                            </p>
+                          </div>
 
-                        <div className="flex items-center gap-1">
-                          <Zap className="h-4 w-4 text-white" />
-                          <span className="font-[family-name:var(--font-display)] text-sm font-bold text-foreground">
-                            {cluster.energy.toLocaleString()}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <Zap className="h-4 w-4 text-white" />
+                            <span className="font-[family-name:var(--font-display)] text-sm font-bold text-foreground">
+                              {cluster.energy.toLocaleString()}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}

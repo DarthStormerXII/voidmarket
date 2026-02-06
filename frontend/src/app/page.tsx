@@ -7,9 +7,11 @@ import { VoidLogo } from "@/components/ui/void-logo"
 import { MarketCard } from "@/components/market/market-card"
 import { TopClustersSection } from "@/components/cluster/top-clusters-section"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockMarkets } from "@/lib/mock-data"
+import { useMarkets } from "@/hooks/use-markets"
+import { toMarket } from "@/lib/adapters"
 import { telegram, haptics } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
+import type { Market } from "@/types"
 
 type MarketTab = "hot" | "latest" | "ending"
 
@@ -21,6 +23,7 @@ const marketTabs: { id: MarketTab; label: string; icon: React.ElementType }[] = 
 
 export default function HomePage() {
   const [selectedTab, setSelectedTab] = useState<MarketTab>("hot")
+  const { markets: apiMarkets, isLoading } = useMarkets({ status: "active" })
 
   // Initialize Telegram Mini App
   useEffect(() => {
@@ -28,19 +31,16 @@ export default function HomePage() {
     telegram.expand()
   }, [])
 
-  const activeMarkets = mockMarkets.filter(m => m.status === "active")
+  const activeMarkets = apiMarkets.map(toMarket)
 
   // Sort markets based on selected tab
   const getFilteredMarkets = () => {
     switch (selectedTab) {
       case "hot":
-        // Sort by total bets (most popular)
         return [...activeMarkets].sort((a, b) => b.totalBets - a.totalBets)
       case "latest":
-        // Sort by creation date (newest first)
         return [...activeMarkets].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       case "ending":
-        // Sort by end date (soonest first)
         return [...activeMarkets].sort((a, b) => a.endDate.getTime() - b.endDate.getTime())
       default:
         return activeMarkets
@@ -93,9 +93,27 @@ export default function HomePage() {
 
         {/* Markets List */}
         <div className="space-y-3">
-          {filteredMarkets.map((market) => (
-            <MarketCard key={market.id} market={market} />
-          ))}
+          {isLoading ? (
+            <div className="text-center py-12">
+              <VoidLogo size="md" className="mx-auto mb-3 animate-pulse" />
+              <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
+                SCANNING THE VOID...
+              </p>
+            </div>
+          ) : filteredMarkets.length > 0 ? (
+            filteredMarkets.map((market) => (
+              <MarketCard key={market.id} market={market} />
+            ))
+          ) : (
+            <div className="text-center py-12">
+              <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
+                NO MARKETS YET
+              </p>
+              <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase mt-1">
+                CREATE THE FIRST MARKET
+              </p>
+            </div>
+          )}
         </div>
 
         {/* See All Link */}

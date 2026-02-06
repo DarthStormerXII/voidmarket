@@ -17,8 +17,10 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockMarkets } from "@/lib/mock-data"
+import { useMarket } from "@/hooks/use-market"
+import { toMarket } from "@/lib/adapters"
 import { CATEGORY_CONFIG } from "@/types"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
@@ -35,9 +37,17 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
   const [shareCode, setShareCode] = useState("")
   const [copied, setCopied] = useState(false)
 
-  const market = mockMarkets.find(m => m.id === marketId)
+  const { market: apiMarket, isLoading } = useMarket(marketId)
 
-  if (!market) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <VoidLogo size="md" className="animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!apiMarket) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-muted-foreground uppercase">MARKET NOT FOUND</p>
@@ -45,6 +55,7 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
     )
   }
 
+  const market = toMarket(apiMarket)
   const category = CATEGORY_CONFIG[market.category]
 
   const handleCreateFork = async () => {
@@ -258,7 +269,6 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
               size="lg"
               onClick={() => {
                 haptics.buttonTap()
-                // TODO: Native share
               }}
             >
               <Share2 className="mr-2 h-4 w-4" />

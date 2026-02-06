@@ -14,8 +14,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { StarAvatar } from "@/components/ui/star-avatar"
+import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockNova, mockStar, mockClusters } from "@/lib/mock-data"
+import { useNova } from "@/hooks/use-nova"
+import { useStar } from "@/hooks/use-star"
+import { useClusters } from "@/hooks/use-clusters"
+import { toNova, getStarTypeFromAddress } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
 import { BetOutcome } from "@/types"
@@ -28,10 +32,21 @@ export default function NovaPage({ params }: NovaPageProps) {
   const { id } = use(params)
   const [selectedBet, setSelectedBet] = useState<BetOutcome | null>(null)
 
-  // Get nova - in real app would fetch by ID
-  const nova = mockNova
+  const { nova: apiNova, matches: apiMatches, isLoading: novaLoading } = useNova(id)
+  const { star, isLoading: starLoading } = useStar()
+  const { clusters: apiClusters, isLoading: clustersLoading } = useClusters()
 
-  if (!nova || nova.id !== id) {
+  const isLoading = novaLoading || starLoading || clustersLoading
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <VoidLogo size="md" className="animate-pulse" />
+      </div>
+    )
+  }
+
+  if (!apiNova) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-muted-foreground uppercase">NOVA NOT FOUND</p>
@@ -39,14 +54,19 @@ export default function NovaPage({ params }: NovaPageProps) {
     )
   }
 
-  // Get clusters
-  const cluster1 = mockClusters.find(c => c.id === nova.cluster1Id)
-  const cluster2 = mockClusters.find(c => c.id === nova.cluster2Id)
+  // Get cluster names
+  const cluster1 = apiClusters.find(c => c.id === apiNova.cluster1Id)
+  const cluster2 = apiClusters.find(c => c.id === apiNova.cluster2Id)
+  const cluster1Name = cluster1?.name || `Cluster #${apiNova.cluster1Id}`
+  const cluster2Name = cluster2?.name || `Cluster #${apiNova.cluster2Id}`
+
+  const nova = toNova(apiNova, apiMatches, cluster1Name, cluster2Name)
 
   // Find user's match
-  const userMatch = nova.matches.find(
-    m => m.star1Id === mockStar.id || m.star2Id === mockStar.id
-  )
+  const userAddress = star?.address
+  const userMatch = userAddress
+    ? nova.matches.find(m => m.star1Id === userAddress || m.star2Id === userAddress)
+    : undefined
 
   // Calculate totals
   const cluster1Photons = nova.matches
@@ -57,13 +77,12 @@ export default function NovaPage({ params }: NovaPageProps) {
     .filter(m => m.status === "completed" && m.winnerId === m.star2Id)
     .reduce((acc, m) => acc + m.photonsAwarded, 0)
 
-  const isUserInCluster1 = mockStar.clusterId === nova.cluster1Id
+  const isUserInCluster1 = star?.clusterId === apiNova.cluster1Id
 
   const handlePlaceBet = () => {
     if (!selectedBet) return
     haptics.success()
     console.log("Placing bet:", selectedBet)
-    // TODO: Implement bet placement
   }
 
   return (
@@ -78,7 +97,7 @@ export default function NovaPage({ params }: NovaPageProps) {
             NOVA
           </h1>
           <Badge variant="inVoid" className="text-xs animate-pulse">
-            LIVE
+            {nova.status === "active" ? "LIVE" : nova.status.toUpperCase()}
           </Badge>
         </div>
       </header>
@@ -162,10 +181,10 @@ export default function NovaPage({ params }: NovaPageProps) {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <StarAvatar
-                      starType={cluster1?.members.find(m => m.odId === userMatch.star1Id)?.starType || "yellow-sun"}
+                      starType={getStarTypeFromAddress(userMatch.star1Id)}
                       size="sm"
                     />
-                    <span className="font-[family-name:var(--font-display)] text-sm text-foreground uppercase">
+                    <span className="font-[family-name:var(--font-display)] text-xs text-foreground uppercase">
                       {userMatch.star1Name}
                     </span>
                   </div>
@@ -173,11 +192,11 @@ export default function NovaPage({ params }: NovaPageProps) {
                     VS
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="font-[family-name:var(--font-display)] text-sm text-foreground uppercase">
+                    <span className="font-[family-name:var(--font-display)] text-xs text-foreground uppercase">
                       {userMatch.star2Name}
                     </span>
                     <StarAvatar
-                      starType={cluster2?.members.find(m => m.odId === userMatch.star2Id)?.starType || "yellow-sun"}
+                      starType={getStarTypeFromAddress(userMatch.star2Id)}
                       size="sm"
                     />
                   </div>
