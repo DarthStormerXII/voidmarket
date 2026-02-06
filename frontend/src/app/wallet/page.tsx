@@ -12,16 +12,18 @@ import {
   Check,
   Coins,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Loader2
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { mockUserBalance, mockTransactions } from "@/lib/mock-data"
+import { mockTransactions } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
+import { useWallet } from "@/components/providers/wallet-provider"
 
 const filterTabs: { id: "all" | "deposit" | "withdraw" | "bet" | "winnings"; label: string }[] = [
   { id: "all", label: "ALL" },
@@ -35,13 +37,19 @@ export default function WalletPage() {
   const [selectedFilter, setSelectedFilter] = useState<"all" | "deposit" | "withdraw" | "bet" | "winnings">("all")
   const [copied, setCopied] = useState(false)
 
-  // Mock wallet address
-  const walletAddress = "0x1234...5678"
-  const fullAddress = "0x1234567890abcdef1234567890abcdef12345678"
+  // Use real wallet data from WalletProvider
+  const { address, totalBalance, arcBalance, isLoading, error } = useWallet()
+
+  // Format address for display
+  const walletAddress = address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : "Loading..."
+  const fullAddress = address || ""
 
   const handleCopyAddress = () => {
+    if (!address) return
     haptics.buttonTap()
-    navigator.clipboard.writeText(fullAddress)
+    navigator.clipboard.writeText(address)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -94,9 +102,19 @@ export default function WalletPage() {
               <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase mb-1">
                 AVAILABLE BALANCE
               </p>
-              <p className="font-[family-name:var(--font-display)] text-4xl font-bold text-foreground text-glow">
-                {mockUserBalance.toFixed(4)}
-              </p>
+              {isLoading ? (
+                <div className="flex items-center justify-center h-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : error ? (
+                <p className="font-[family-name:var(--font-display)] text-lg font-bold text-red-500">
+                  {error}
+                </p>
+              ) : (
+                <p className="font-[family-name:var(--font-display)] text-4xl font-bold text-foreground text-glow">
+                  {totalBalance.toFixed(4)}
+                </p>
+              )}
               <p className="font-[family-name:var(--font-body)] text-sm text-muted-foreground uppercase">
                 USDC
               </p>
@@ -119,7 +137,7 @@ export default function WalletPage() {
                 )}
               </button>
               <a
-                href={`https://etherscan.io/address/${fullAddress}`}
+                href={`https://testnet.arcscan.app/address/${fullAddress}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-1 rounded hover:bg-void-mid transition-colors"
