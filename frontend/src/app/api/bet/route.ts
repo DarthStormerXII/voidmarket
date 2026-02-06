@@ -1,46 +1,50 @@
 /**
  * POST /api/bet
  *
- * Place a bet via Circle SDK
- * Input: { telegramUserId, marketId, outcome, amount, contractAddress }
- * Output: { transactionId, status: "PENDING" }
+ * Place a bet via Circle SDK using commit-reveal scheme.
+ * The contract signature is: placeBet(uint256 marketId, bytes32 commitmentHash) payable
+ * Amount is sent as msg.value (native USDC on Arc, 18 decimals).
+ *
+ * Input: { telegramUserId, marketId, commitmentHash, amount }
+ * Output: { transactionId, txHash, status }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getWalletByRefId, parseUSDCAmount } from '@/lib/services/circle/wallet';
 import { executeContractCall } from '@/lib/services/circle/transaction';
 
-// VoidMarket contract ABI for placeBet
+const VOIDMARKET_CORE_ADDRESS = process.env.VOIDMARKET_CORE_ADDRESS!;
+
+// Correct ABI matching the contract: placeBet(uint256, bytes32) payable
 const PLACE_BET_ABI = [
-  'function placeBet(uint256 marketId, bool outcome, uint256 amount) external',
+  'function placeBet(uint256 marketId, bytes32 commitmentHash) external payable returns (uint256)',
 ] as const;
 
 interface PlaceBetRequest {
   telegramUserId: string;
   marketId: string;
-  outcome: 'YES' | 'NO';
+  commitmentHash: string; // bytes32 hex
   amount: number;
-  contractAddress: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: PlaceBetRequest = await request.json();
 
-    const { telegramUserId, marketId, outcome, amount, contractAddress } = body;
+    const { telegramUserId, marketId, commitmentHash, amount } = body;
 
     // Validate required fields
-    if (!telegramUserId || !marketId || !outcome || !amount || !contractAddress) {
+    if (!telegramUserId || !marketId || !commitmentHash || !amount) {
       return NextResponse.json(
-        { error: 'Missing required fields: telegramUserId, marketId, outcome, amount, contractAddress' },
+        { error: 'Missing required fields: telegramUserId, marketId, commitmentHash, amount' },
         { status: 400 }
       );
     }
 
-    // Validate outcome
-    if (outcome !== 'YES' && outcome !== 'NO') {
+    // Validate commitment hash format (bytes32)
+    if (!/^0x[0-9a-fA-F]{64}$/.test(commitmentHash)) {
       return NextResponse.json(
-        { error: 'Outcome must be "YES" or "NO"' },
+        { error: 'commitmentHash must be a valid bytes32 hex string' },
         { status: 400 }
       );
     }
@@ -65,16 +69,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse amount to wei (Arc uses 18 decimals)
+    // Parse amount to wei (Arc uses 18 decimals for native USDC)
     const amountWei = parseUSDCAmount(amount.toString(), 'ARC-TESTNET');
 
-    // Execute the bet transaction
+    // Execute the bet transaction — amount sent as msg.value
     const result = await executeContractCall({
       walletId: wallet.id,
-      contractAddress,
+      contractAddress: VOIDMARKET_CORE_ADDRESS,
       abi: PLACE_BET_ABI,
       functionName: 'placeBet',
-      args: [BigInt(marketId), outcome === 'YES', amountWei],
+      args: [BigInt(marketId), commitmentHash as `0x${string}`],
+      value: amountWei,
     });
 
     return NextResponse.json({

@@ -18,6 +18,7 @@ import { BetOutcome, Market } from "@/types"
 import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
 import { useWallet } from "@/components/providers/wallet-provider"
+import { generateSalt, generateCommitment, storeBetCommitment } from "@/lib/commitment"
 
 interface PlaceBetDrawerProps {
   market: Market
@@ -55,18 +56,26 @@ export function PlaceBetDrawer({ market, userBalance, children }: PlaceBetDrawer
     setIsLoading(true)
 
     try {
-      // Place bet via Circle SDK
+      // Generate commitment (direction hidden in hash)
+      const direction = selectedOutcome === "YES"
+      const salt = generateSalt()
+      const commitmentHash = generateCommitment(direction, salt)
+
+      // Place bet via Circle SDK with commitment hash
       const { transactionId } = await placeBet({
         marketId: market.id,
-        outcome: selectedOutcome,
+        commitmentHash,
         amount: parsedAmount,
-        contractAddress: (market as any).contractAddress || "0x0000000000000000000000000000000000000000", // TODO: Add contractAddress to Market type
       })
 
       // Poll for transaction confirmation
       const result = await pollTransaction(transactionId)
 
       if (result.status === "CONFIRMED") {
+        // Store commitment in localStorage for later reveal
+        // Use transactionId as betId until we get the actual on-chain betId
+        storeBetCommitment(market.id, transactionId, direction, salt)
+
         // Refresh balance after successful bet
         await refreshBalance()
 

@@ -229,9 +229,104 @@ export const STAR_TYPES: StarTypeConfig[] = [
 // Wallet types for Circle integration
 export interface PlaceBetParams {
   marketId: string
-  outcome: BetOutcome
+  commitmentHash: string // bytes32 hex — generated client-side
   amount: number
-  contractAddress: string
+}
+
+// API response types
+export interface ApiMarket {
+  id: number
+  question: string
+  creator: string
+  creatorName?: string
+  deadline: string
+  resolutionDeadline?: string
+  status: MarketStatus
+  outcome?: boolean
+  totalYesAmount: string
+  totalNoAmount: string
+  totalPool: string
+  totalBets: number
+  isForked: boolean
+  parentMarketId?: number
+  category: MarketCategory
+  oracleType: string
+  oracleSource?: string
+}
+
+export interface ApiBet {
+  id: number
+  marketId: number
+  marketQuestion?: string
+  bettor: string
+  amount: string
+  commitmentHash: string
+  revealed: boolean
+  direction?: boolean
+  timestamp: string
+  claimed: boolean
+}
+
+export interface ApiCluster {
+  id: number
+  name: string
+  description?: string
+  leader: string
+  energy: number
+  novasWon: number
+  totalNovas: number
+  isPrivate: boolean
+  memberCount: number
+  maxMembers: number
+}
+
+export interface ApiMember {
+  address: string
+  clusterId: number
+  photons: number
+  joinedAt: string
+  isActive: boolean
+}
+
+export interface ApiNova {
+  id: number
+  cluster1Id: number
+  cluster2Id: number
+  totalRounds: number
+  currentRound: number
+  status: string
+  prizePool: string
+  winningClusterId?: number
+  cluster1TotalPhotons: number
+  cluster2TotalPhotons: number
+  startedAt: string
+  matchesPerRound: number
+}
+
+export interface ApiMatch {
+  id: number
+  novaId: number
+  round: number
+  star1: string
+  star2: string
+  marketId: number
+  status: string
+  winner?: string
+  star1Photons: number
+  star2Photons: number
+  bettingDeadline: string
+}
+
+export interface ApiStar {
+  name: string
+  address: string
+  telegramId?: string
+  starType: StarType
+  description?: string
+  clusterId?: number
+  totalPhotons: number
+  betsWon: number
+  betsLost: number
 }
 
 export interface TransactionResult {

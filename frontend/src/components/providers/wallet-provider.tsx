@@ -162,7 +162,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     await fetchBalance(telegramUserId);
   }, [user?.id]);
 
-  // Place bet
+  // Place bet using commitment hash
   const placeBet = useCallback(
     async (params: PlaceBetParams): Promise<{ transactionId: string }> => {
       const telegramUserId = user?.id || "test_user_123";
@@ -175,9 +175,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({
           telegramUserId,
           marketId: params.marketId,
-          outcome: params.outcome,
+          commitmentHash: params.commitmentHash,
           amount: params.amount,
-          contractAddress: params.contractAddress,
         }),
       });
 
