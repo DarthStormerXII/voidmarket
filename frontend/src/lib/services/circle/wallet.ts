@@ -38,6 +38,40 @@ export interface WalletBalance {
 // Minimum bet amount: 0.001 USDC
 export const MIN_BET_AMOUNT = '0.001';
 
+// Cache for wallet set ID (auto-created if not configured)
+let _cachedWalletSetId: string | null = null;
+
+/**
+ * Get or create wallet set
+ * If CIRCLE_WALLET_SET_ID is set, uses that. Otherwise creates one automatically.
+ */
+async function getOrCreateWalletSetId(): Promise<string> {
+  // Use configured wallet set ID if available
+  if (CIRCLE_CONFIG.WALLET_SET_ID) {
+    return CIRCLE_CONFIG.WALLET_SET_ID;
+  }
+
+  // Return cached ID if we already created one
+  if (_cachedWalletSetId) {
+    return _cachedWalletSetId;
+  }
+
+  // Create a new wallet set
+  const client = getCircleClient();
+  const response = await (client as any).createWalletSet({
+    name: 'VoidMarket Users',
+  });
+
+  const walletSetId = response.data?.walletSet?.id;
+  if (!walletSetId) {
+    throw new Error('Failed to create wallet set');
+  }
+
+  console.log('[Circle] Auto-created wallet set:', walletSetId);
+  _cachedWalletSetId = walletSetId;
+  return walletSetId;
+}
+
 /**
  * Get wallet by RefID
  *
@@ -74,11 +108,13 @@ export async function createWallet(
   blockchain: SupportedBlockchain = CIRCLE_CONFIG.PRIMARY_BLOCKCHAIN
 ): Promise<CreateWalletResult> {
   const client = getCircleClient();
+  const walletSetId = await getOrCreateWalletSetId();
+
   const response = await (client as any).createWallets({
     accountType: 'EOA',
     blockchains: [blockchain],
     count: 1,
-    walletSetId: CIRCLE_CONFIG.WALLET_SET_ID,
+    walletSetId,
     refId,
   });
 
