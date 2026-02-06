@@ -225,3 +225,37 @@ export const STAR_TYPES: StarTypeConfig[] = [
     description: "A twin star system orbiting together",
   },
 ]
+
+// Wallet types for Circle integration
+export interface PlaceBetParams {
+  marketId: string
+  outcome: BetOutcome
+  amount: number
+  contractAddress: string
+}
+
+export interface TransactionResult {
+  transactionId: string
+  txHash?: string
+  status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED"
+  errorReason?: string
+}
+
+export interface WalletInfo {
+  walletId: string
+  address: string
+  isNew: boolean
+}
+
+export interface WalletBalanceInfo {
+  address: string
+  walletId: string
+  arcBalance: string
+  gatewayBalances: Array<{
+    chain: string
+    domain: number
+    balance: string
+    balanceUSDC: number
+  }>
+  totalBalance: string
+}
