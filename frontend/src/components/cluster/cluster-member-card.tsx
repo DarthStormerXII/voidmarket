@@ -82,7 +82,7 @@ export function ClusterMemberCard({ member, isLeader, rank }: ClusterMemberCardP
               <div className="flex items-center justify-end gap-1">
                 <Swords className="h-3 w-3 text-white/60" />
                 <span className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground">
-                  {member.battlesWon}/{member.battlesPlayed}
+                  {member.novasWon}/{member.novasPlayed}
                 </span>
               </div>
               <p className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground uppercase">

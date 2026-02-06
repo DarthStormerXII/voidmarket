@@ -82,6 +82,8 @@ export const haptics = {
   placeBet: () => haptics.impact("heavy"),
   betSuccess: () => haptics.notification("success"),
   betError: () => haptics.notification("error"),
+  success: () => haptics.notification("success"),
+  error: () => haptics.notification("error"),
   winReveal: () => {
     haptics.impact("heavy")
     setTimeout(() => haptics.notification("success"), 200)

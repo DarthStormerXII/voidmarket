@@ -51,7 +51,7 @@ export async function executeContractCall(
     walletId,
     contractAddress,
     callData,
-    amount: value ? (value / 10n ** 18n).toString() : undefined, // Convert from wei to USDC
+    amount: value ? (value / BigInt(10) ** BigInt(18)).toString() : undefined, // Convert from wei to USDC
     fee: {
       type: 'level',
       config: {

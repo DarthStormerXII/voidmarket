@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 
 interface VoidLogoProps {
   className?: string
-  size?: "sm" | "md" | "lg"
+  size?: "sm" | "md" | "lg" | "xl"
 }
 
 export function VoidLogo({ className, size = "md" }: VoidLogoProps) {
@@ -12,6 +12,7 @@ export function VoidLogo({ className, size = "md" }: VoidLogoProps) {
     sm: "h-8 w-8",
     md: "h-12 w-12",
     lg: "h-16 w-16",
+    xl: "h-24 w-24",
   }
 
   return (

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils"
 import { BetOutcome, Market } from "@/types"
 import { haptics } from "@/lib/haptics"
 import { toast } from "sonner"
+import { useWallet } from "@/components/providers/wallet-provider"
 
 interface PlaceBetDrawerProps {
   market: Market
@@ -32,6 +33,8 @@ export function PlaceBetDrawer({ market, userBalance, children }: PlaceBetDrawer
   const [amount, setAmount] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
+  const { placeBet, pollTransaction, refreshBalance } = useWallet()
+
   const parsedAmount = parseFloat(amount) || 0
   const isValid = selectedOutcome && parsedAmount > 0 && parsedAmount <= userBalance
 
@@ -46,36 +49,58 @@ export function PlaceBetDrawer({ market, userBalance, children }: PlaceBetDrawer
   }
 
   const handleSubmit = async () => {
-    if (!isValid) return
+    if (!isValid || !selectedOutcome) return
 
     haptics.placeBet()
     setIsLoading(true)
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    try {
+      // Place bet via Circle SDK
+      const { transactionId } = await placeBet({
+        marketId: market.id,
+        outcome: selectedOutcome,
+        amount: parsedAmount,
+        contractAddress: (market as any).contractAddress || "0x0000000000000000000000000000000000000000", // TODO: Add contractAddress to Market type
+      })
 
-    setIsLoading(false)
-    setOpen(false)
+      // Poll for transaction confirmation
+      const result = await pollTransaction(transactionId)
 
-    // Reset form
-    setSelectedOutcome(null)
-    setAmount("")
+      if (result.status === "CONFIRMED") {
+        // Refresh balance after successful bet
+        await refreshBalance()
 
-    // Show success toast
-    haptics.betSuccess()
-    toast.custom(() => (
-      <div className="bg-void-mid border border-white/30 rounded-lg p-4 flex items-center gap-3 glow">
-        <VoidLogo size="sm" />
-        <div>
-          <p className="font-[family-name:var(--font-display)] text-sm text-foreground uppercase">
-            BET SENT INTO THE VOID
-          </p>
-          <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase">
-            {parsedAmount} USDC ON {selectedOutcome}
-          </p>
-        </div>
-      </div>
-    ))
+        setIsLoading(false)
+        setOpen(false)
+
+        // Reset form
+        setSelectedOutcome(null)
+        setAmount("")
+
+        // Show success toast
+        haptics.betSuccess()
+        toast.custom(() => (
+          <div className="bg-void-mid border border-white/30 rounded-lg p-4 flex items-center gap-3 glow">
+            <VoidLogo size="sm" />
+            <div>
+              <p className="font-[family-name:var(--font-display)] text-sm text-foreground uppercase">
+                BET SENT INTO THE VOID
+              </p>
+              <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase">
+                {parsedAmount} USDC ON {selectedOutcome}
+              </p>
+            </div>
+          </div>
+        ))
+      } else {
+        throw new Error(`Transaction ${result.status}${result.errorReason ? `: ${result.errorReason}` : ""}`)
+      }
+    } catch (error) {
+      setIsLoading(false)
+
+      // Show error toast
+      toast.error(error instanceof Error ? error.message : "Failed to place bet")
+    }
   }
 
   return (
