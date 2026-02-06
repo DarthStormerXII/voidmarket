@@ -1,0 +1,126 @@
+/**
+ * GET /api/star  — Get star profile (DB + on-chain)
+ * POST /api/star — Upsert star profile in DB
+ *
+ * Query: ?telegramUserId=xxx
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getWalletByRefId } from '@/lib/services/circle/wallet';
+import {
+  upsertStar,
+  getStarByTelegramId,
+  getStarByAddress,
+} from '@/lib/services/db';
+import { getMemberByAddress } from '@/lib/services/contracts/cluster-service';
+import type { ApiStar } from '@/types';
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const telegramUserId = searchParams.get('telegramUserId');
+
+    if (!telegramUserId) {
+      return NextResponse.json(
+        { error: 'Missing telegramUserId query parameter' },
+        { status: 400 }
+      );
+    }
+
+    // Look up star in DB by telegram ID
+    const dbStar = await getStarByTelegramId(telegramUserId);
+
+    if (!dbStar) {
+      return NextResponse.json({ star: null });
+    }
+
+    // Enrich with on-chain data (photons, cluster membership)
+    let onChainPhotons = 0;
+    let onChainClusterId: number | undefined;
+
+    try {
+      const member = await getMemberByAddress(dbStar.walletAddress);
+      if (member.isActive) {
+        onChainPhotons = member.photons;
+        onChainClusterId = member.clusterId > 0 ? member.clusterId : undefined;
+      }
+    } catch {
+      // Member might not exist on-chain yet
+    }
+
+    const star: ApiStar = {
+      name: dbStar.name,
+      address: dbStar.walletAddress,
+      telegramId: dbStar.telegramId || undefined,
+      starType: dbStar.starType as ApiStar['starType'],
+      description: dbStar.description || undefined,
+      clusterId: onChainClusterId,
+      totalPhotons: onChainPhotons || dbStar.totalPhotons,
+      betsWon: dbStar.betsWon,
+      betsLost: dbStar.betsLost,
+    };
+
+    return NextResponse.json({ star });
+  } catch (error) {
+    console.error('[API /star GET] Error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to fetch star' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+
+    const { telegramUserId, name, starType, description } = body;
+
+    if (!telegramUserId || !name || !starType) {
+      return NextResponse.json(
+        { error: 'Missing required fields: telegramUserId, name, starType' },
+        { status: 400 }
+      );
+    }
+
+    // Get wallet address
+    const refId = `tg_${telegramUserId}`;
+    const wallet = await getWalletByRefId(refId);
+
+    if (!wallet) {
+      return NextResponse.json(
+        { error: 'Wallet not found. Create a wallet first.' },
+        { status: 404 }
+      );
+    }
+
+    // Upsert star in DB
+    const dbStar = await upsertStar({
+      name,
+      walletAddress: wallet.address,
+      telegramId: telegramUserId,
+      circleWalletId: wallet.id,
+      starType,
+      description,
+    });
+
+    const star: ApiStar = {
+      name: dbStar.name,
+      address: dbStar.walletAddress,
+      telegramId: dbStar.telegramId || undefined,
+      starType: dbStar.starType as ApiStar['starType'],
+      description: dbStar.description || undefined,
+      totalPhotons: dbStar.totalPhotons,
+      betsWon: dbStar.betsWon,
+      betsLost: dbStar.betsLost,
+    };
+
+    return NextResponse.json({ star });
+  } catch (error) {
+    console.error('[API /star POST] Error:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to upsert star' },
+      { status: 500 }
+    );
+  }
+}
