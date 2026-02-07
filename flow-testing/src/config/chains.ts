@@ -4,7 +4,7 @@
  * Arc Testnet is the primary settlement layer where:
  * - USDC is the native gas token (18 decimals native, 6 decimals ERC20 interface)
  * - All contracts are deployed
- * - Users deposit from other chains via CCTP or LiFi
+ * - Users deposit from other chains via Circle CCTP
  */
 
 import { defineChain, http, createPublicClient, type Chain } from 'viem';

@@ -22,7 +22,7 @@ A wagering bot for Telegram where:
 
 1. **Anyone can fork public markets** to create private markets with friends
 2. **Bets are private** — nobody (not even the server) knows your position until resolution
-3. **Deposit from anywhere** — Bitcoin, Solana, Sui, or any EVM chain via LI.FI
+3. **Deposit from anywhere** — Any supported EVM chain (Ethereum, Base, Arbitrum, etc.) via Circle CCTP
 4. **Resolution is automatic** via Stork oracle
 5. **Payouts settle on Arc** in USDC
 
@@ -69,7 +69,7 @@ Example Match:
 
 | Protocol | Role | How We Use It |
 |----------|------|---------------|
-| **LI.FI** | Cross-chain deposits | Deposit from any chain (BTC, SOL, SUI, EVM) with any asset into the betting pool |
+| **Circle Bridge Kit** | Cross-chain deposits | Bridge USDC from any supported EVM chain via CCTP |
 | **Arc** | Settlement + Wallets | Circle embedded wallets (developer wallets for gasless UX), USDC settlement, Stork oracle for price resolution |
 | **ENS** | Identity layer | Custom CCIP-Read resolver for zero-gas subdomains. Stars, markets, and clusters all get `*.voidmarket.eth` names |
 
@@ -130,18 +130,18 @@ At resolution:
 │  └── Sends to server: commitment_hash + amount (NOT direction) │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
-│  2. CROSS-CHAIN DEPOSIT (via LI.FI)                            │
+│  2. CROSS-CHAIN DEPOSIT (via Circle CCTP)                       │
 │                                                                 │
 │  User can deposit from:                                         │
-│  ├── Bitcoin (BTC)                                             │
-│  ├── Solana (SOL, USDC)                                        │
-│  ├── Sui (SUI)                                                 │
-│  ├── Any EVM chain (ETH, ARB, OP, BASE, POLYGON, etc.)        │
-│  └── Any token → auto-converted to USDC on Arc                 │
+│  ├── Ethereum                                                  │
+│  ├── Base                                                      │
+│  ├── Arbitrum                                                  │
+│  ├── Any supported EVM chain with USDC                         │
+│  └── USDC bridged natively to Arc via CCTP                     │
 │                                                                 │
-│  LI.FI handles:                                                 │
-│  ├── Cross-chain bridging                                      │
-│  ├── Token swaps                                               │
+│  Circle CCTP handles:                                           │
+│  ├── Cross-chain USDC bridging                                 │
+│  ├── Native burn-and-mint transfers                            │
 │  └── Single transaction UX                                     │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
@@ -177,7 +177,7 @@ At resolution:
 
 ---
 
-## Cross-Chain Deposits (LI.FI)
+## Cross-Chain Deposits (Circle CCTP)
 
 ### Deposit From Anywhere
 
@@ -186,27 +186,26 @@ At resolution:
 │  DEPOSIT TO VOIDMARKET                  │
 │                                         │
 │  From Chain:                            │
-│  [Bitcoin] [Solana] [Sui] [Ethereum]   │
-│  [Arbitrum] [Base] [Polygon] [+more]   │
+│  [Ethereum] [Base] [Arbitrum]          │
+│  [Polygon] [Avalanche] [+more EVM]    │
 │                                         │
-│  From Token:                            │
-│  [BTC] [SOL] [ETH] [USDC] [Any Token]  │
+│  Token: USDC                            │
 │                                         │
-│  Amount: [0.01 BTC]                     │
-│  You'll receive: ~$650 USDC on Arc      │
+│  Amount: [100 USDC]                     │
+│  You'll receive: 100 USDC on Arc        │
 │                                         │
-│  [Deposit via LI.FI]                    │
+│  [Deposit via Circle Bridge Kit]        │
 │                                         │
-│  Powered by LI.FI - best routes across │
-│  DEXs and bridges automatically         │
+│  Powered by Circle CCTP - native USDC  │
+│  bridging across supported EVM chains   │
 └─────────────────────────────────────────┘
 ```
 
-### Why LI.FI?
+### Why Circle CCTP?
 
 - **Universal Access**: Users don't need USDC on Arc to start betting
-- **Any Asset**: Convert BTC, SOL, ETH, or any token to USDC in one tx
-- **Best Routes**: LI.FI finds optimal path across DEXs and bridges
+- **Native USDC**: Burn-and-mint ensures real USDC, not wrapped tokens
+- **Fast & Secure**: Circle's native cross-chain transfer protocol
 - **Single UX**: One click deposit, no manual bridging
 
 ---
@@ -332,7 +331,7 @@ Circle auth (email/Google/Apple)
 Wallet created and linked to Telegram ID
       │
       ▼
-[Deposit via LI.FI] or [Skip for now]
+[Deposit via Circle Bridge Kit] or [Skip for now]
       │
       ▼
 YOU ARE READY
@@ -365,7 +364,7 @@ YOU ARE READY
        ┌─────────────┼─────────────┐
        ▼             ▼             ▼
 ┌────────────┐ ┌────────────┐ ┌─────────────────┐
-│   LI.FI    │ │    Arc     │ │      ENS        │
+│Circle CCTP │ │    Arc     │ │      ENS        │
 │            │ │            │ │                 │
 │ (cross-    │ │ • Wallets  │ │ • Mainnet       │
 │  chain     │ │ • Balances │ │   Resolver      │
@@ -516,7 +515,7 @@ deposits:
   source_token      TEXT
   source_amount     DECIMAL
   dest_amount       DECIMAL (USDC on Arc)
-  lifi_tx_hash      TEXT
+  cctp_tx_hash      TEXT
   status            ENUM (pending, completed, failed)
   created_at        TIMESTAMP
 ```
@@ -527,7 +526,7 @@ deposits:
 
 | Prize | How We Qualify |
 |-------|----------------|
-| **LI.FI** ($6k) | Cross-chain deposits from BTC, SOL, SUI, and 50+ EVM chains into betting pool |
+| **Circle Bridge Kit** | Cross-chain USDC deposits from any supported EVM chain (Ethereum, Base, Arbitrum, etc.) via CCTP |
 | **Arc** ($10k) | Circle developer wallets + Stork oracle + USDC settlement (gasless UX) |
 | **ENS** ($5k) | Custom CCIP-Read resolver with wildcard resolution. Users, markets, clusters as ENS subdomains. Text records for DeFi data (pool sizes, oracle configs, betting stats). See [ENS_ARCHITECTURE.md](./ENS_ARCHITECTURE.md) |
 
@@ -539,7 +538,7 @@ deposits:
 - [ ] Telegram bot with betting commands
 - [ ] Telegram Mini App for private bets
 - [ ] Circle embedded wallet integration (developer wallets)
-- [ ] LI.FI cross-chain deposit flow
+- [ ] Circle CCTP cross-chain deposit flow
 - [ ] ENS custom resolver (CCIP-Read + wildcard)
 - [ ] ENS gateway server for off-chain resolution
 - [ ] Star/Market/Cluster subdomains via ENS

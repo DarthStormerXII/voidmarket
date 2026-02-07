@@ -11,7 +11,7 @@ A ZK private wagering platform built as a Telegram mini app with cross-chain dep
 Voidmarket is a Telegram-native prediction market where:
 
 - **Bets are private** — Commitment-reveal scheme hides positions until resolution
-- **Deposit from anywhere** — BTC, SOL, SUI, and 50+ EVM chains via LI.FI
+- **Deposit from anywhere** — Any supported EVM chain (Ethereum, Base, Arbitrum, etc.) via Circle CCTP
 - **Gasless UX** — Circle developer wallets on Arc chain handle gas
 - **Identity via ENS** — Users get `star.voidmarket.eth` subdomains via CCIP-Read
 - **Social wagering** — Fork markets, create clusters, challenge with novas
@@ -25,7 +25,7 @@ Voidmarket is a Telegram-native prediction market where:
 |-----------|-----------|
 | **Frontend** | Next.js 15 (Telegram Mini App) |
 | **Smart Contracts** | Solidity on Arc Chain |
-| **Cross-chain Deposits** | LI.FI |
+| **Cross-chain Deposits** | Circle Bridge Kit (CCTP) |
 | **Wallets** | Circle Programmable Wallets |
 | **Identity** | ENS with CCIP-Read resolver |
 | **Oracle** | Stork (market resolution) |
@@ -42,7 +42,7 @@ Voidmarket is a Telegram-native prediction market where:
 ## How It Works
 
 1. **Onboard** — Open Telegram bot, Circle creates a gasless wallet on Arc
-2. **Deposit** — Send funds from any chain — LI.FI bridges to USDC on Arc
+2. **Deposit** — Send USDC from any supported EVM chain — Circle CCTP bridges to USDC on Arc
 3. **Browse Markets** — View trending markets or fork one for your group
 4. **Place Bet** — Submit commitment hash (hidden position)
 5. **Resolution** — Oracle resolves market, bets are revealed

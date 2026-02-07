@@ -14,16 +14,16 @@ This plan outlines the comprehensive testing architecture for VoidMarket's core 
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
 │  │                        EXTERNAL CHAINS                                │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │  │
-│  │  │   Sepolia   │  │ Base Sepolia│  │Arbitrum Sep │  │  Other EVM  │  │  │
-│  │  │   (CCTP)    │  │   (CCTP)    │  │   (CCTP)    │  │   (LiFi)    │  │  │
+│  │  │   Sepolia   │  │ Base Sepolia│  │Arbitrum Sep │  │ Other CCTP  │  │  │
+│  │  │   (CCTP)    │  │   (CCTP)    │  │   (CCTP)    │  │   (CCTP)    │  │  │
 │  │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │  │
 │  │         │                │                │                │         │  │
 │  │         └────────────────┼────────────────┼────────────────┘         │  │
 │  │                          │                │                          │  │
 │  │                    ┌─────┴────────────────┴─────┐                    │  │
 │  │                    │     DEPOSIT ROUTER         │                    │  │
-│  │                    │  • Circle CCTP (preferred) │                    │  │
-│  │                    │  • LiFi (fallback chains)  │                    │  │
+│  │                    │  • Circle CCTP             │                    │  │
+│  │                    │                            │                    │  │
 │  │                    └─────────────┬──────────────┘                    │  │
 │  └──────────────────────────────────┼───────────────────────────────────┘  │
 │                                     │                                      │
@@ -119,9 +119,6 @@ voidmarket/
 │   │   │   │   ├── resolver.ts        # ENS resolution
 │   │   │   │   └── gateway.ts         # CCIP-Read gateway server
 │   │   │   │
-│   │   │   ├── lifi/
-│   │   │   │   ├── quotes.ts          # Quote fetching
-│   │   │   │   └── bridge.ts          # Fallback bridging
 │   │   │   │
 │   │   │   ├── telegram/
 │   │   │   │   ├── bot.ts             # Telegram bot instance
@@ -1240,25 +1237,14 @@ import {
 } from './services/circle/arc-helpers';
 ```
 
-### LiFi SDK (from playground-lifi)
-
-```typescript
-// For chains not supported by Circle CCTP
-import { getComposerQuote, executeComposerRoute } from './services/lifi/quotes';
-
-// Use only as fallback when CCTP unavailable
-const shouldUseLifi = !isCCTPSupported(sourceChain);
-```
-
 ### Deposit Router Logic
 
 ```typescript
 /**
  * Deposit Router
  *
- * Priority:
- * 1. Circle CCTP - Sepolia, Base Sepolia, Arbitrum Sepolia, Arc Testnet
- * 2. LiFi - All other chains (mainnet only, so may need testnet alternative)
+ * All cross-chain USDC deposits use Circle CCTP (Cross-Chain Transfer Protocol).
+ * Supported chains: Sepolia, Base Sepolia, Arbitrum Sepolia, Arc Testnet
  */
 
 export async function depositToArc(params: {
@@ -1266,22 +1252,16 @@ export async function depositToArc(params: {
   amount: bigint;
   userAddress: string;
 }): Promise<DepositResult> {
-  if (isCCTPSupported(params.sourceChain)) {
-    return executeCCTPBridge({
-      fromChain: params.sourceChain,
-      toChain: ARC_TESTNET_CHAIN_ID,
-      amount: params.amount,
-      recipient: params.userAddress,
-    });
-  } else {
-    // LiFi fallback (mainnet only)
-    return executeLiFiBridge({
-      fromChain: params.sourceChain,
-      toChain: ARC_TESTNET_CHAIN_ID,
-      amount: params.amount,
-      recipient: params.userAddress,
-    });
+  if (!isCCTPSupported(params.sourceChain)) {
+    throw new Error(`Chain ${params.sourceChain} is not supported by Circle CCTP`);
   }
+
+  return executeCCTPBridge({
+    fromChain: params.sourceChain,
+    toChain: ARC_TESTNET_CHAIN_ID,
+    amount: params.amount,
+    recipient: params.userAddress,
+  });
 }
 ```
 
@@ -1392,9 +1372,8 @@ ENS_GATEWAY_URL=http://localhost:3001
 ENS_REGISTRY_ADDRESS=0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e
 VOIDMARKET_ENS_DOMAIN=voidmarket.eth
 
-# LiFi (mainnet fallback - for chains CCTP doesn't support)
-LIFI_API_KEY=...
-LIFI_INTEGRATOR=voidmarket
+# Circle Bridge Kit (cross-chain USDC deposits via CCTP)
+# No additional API key needed - uses Circle SDK credentials above
 
 # PostgreSQL Database
 DATABASE_URL=postgresql://postgres:password@localhost:5432/voidmarket
@@ -1457,8 +1436,8 @@ VOIDMARKET_RESOLVER_ADDRESS=
 
 ### Phase 5: Cross-Chain Deposits
 1. Circle CCTP integration (Sepolia, Base Sepolia → Arc)
-2. LiFi fallback integration (other chains)
-3. Deposit router with chain detection
+2. Circle Bridge Kit SDK integration
+3. Deposit router with CCTP chain detection
 
 ### Phase 6: Telegram Bot Commands
 1. /start - Registration flow
@@ -1485,7 +1464,6 @@ VOIDMARKET_RESOLVER_ADDRESS=
 {
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^4.0.0",
-    "@lifi/sdk": "^3.0.0",
     "viem": "^2.0.0",
     "ethers": "^6.0.0",
     "@ensdomains/ensjs": "^4.0.0",

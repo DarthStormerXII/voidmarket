@@ -8,7 +8,7 @@
 
 Voidmarket is a **ZK private wagering bot** that works on Telegram. Users can:
 1. Fork public markets to create private markets with friends
-2. Deposit from any chain (BTC, SOL, SUI, EVM) via LI.FI
+2. Deposit from any supported EVM chain (Ethereum, Base, Arbitrum, etc.) via Circle CCTP
 3. Place private bets (hidden until resolution)
 4. Get automatic resolution via Stork oracle
 5. Settle payouts in USDC on Arc
@@ -25,7 +25,7 @@ The core innovation: **Nobody knows your bet direction until the market resolves
 |-----------|---------|
 | **Bot Commands** | `/bet`, `/create`, `/reveal`, `/balance`, `/deposit` |
 | **Mini App** | Full betting interface (opens in Telegram) |
-| **Deposit Flow** | LI.FI-powered cross-chain deposits |
+| **Deposit Flow** | Circle CCTP cross-chain deposits |
 | **DM Notifications** | Market resolution, payout alerts |
 
 ---
@@ -642,15 +642,15 @@ Energy awarded to winning cluster
 
 ---
 
-## LI.FI Integration Details
+## Circle CCTP Integration Details
 
 | Feature | Implementation |
 |---------|----------------|
-| **Supported Chains** | BTC, SOL, SUI, ETH, ARB, OP, BASE, POLYGON, +50 more |
-| **Quote API** | Get best route and price |
-| **Execute API** | Trigger cross-chain transfer |
-| **Status Tracking** | Monitor transaction progress |
-| **Slippage Handling** | User-configurable tolerance |
+| **Supported Chains** | Ethereum, Base, Arbitrum, Polygon, Avalanche, and other CCTP-supported EVM chains |
+| **Bridge Kit SDK** | Initiate cross-chain USDC transfers |
+| **Burn & Mint** | Native USDC burn on source, mint on destination |
+| **Attestation** | Circle attestation service for transfer verification |
+| **Status Tracking** | Monitor transaction and attestation progress |
 | **Error Recovery** | Handle failed bridges gracefully |
 
 ---
@@ -673,7 +673,7 @@ Energy awarded to winning cluster
 
 ### Pending (Backend/Integration)
 - [ ] Circle wallet integration
-- [ ] LI.FI deposit flow
+- [ ] Circle CCTP deposit flow
 - [ ] ENS market registration
 - [ ] Commitment/reveal cryptography
 - [ ] Stork oracle integration
