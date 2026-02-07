@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { cn } from "@/lib/utils"
 import { StarType } from "@/types"
 
@@ -24,42 +25,14 @@ const glowSizeClasses = {
   xl: "shadow-[0_0_30px_rgba(255,255,255,0.6)]",
 }
 
-// Star type visual configurations
-const starTypeConfig: Record<StarType, {
-  gradient: string
-  innerGlow: string
-  pulseColor: string
-}> = {
-  "red-giant": {
-    gradient: "bg-gradient-radial from-white via-gray-300 to-gray-500",
-    innerGlow: "shadow-[inset_0_0_20px_rgba(255,255,255,0.8)]",
-    pulseColor: "rgba(255,255,255,0.3)",
-  },
-  "blue-supergiant": {
-    gradient: "bg-gradient-radial from-white via-gray-200 to-gray-400",
-    innerGlow: "shadow-[inset_0_0_25px_rgba(255,255,255,0.9)]",
-    pulseColor: "rgba(255,255,255,0.4)",
-  },
-  "white-dwarf": {
-    gradient: "bg-gradient-radial from-white via-gray-100 to-gray-300",
-    innerGlow: "shadow-[inset_0_0_15px_rgba(255,255,255,1)]",
-    pulseColor: "rgba(255,255,255,0.5)",
-  },
-  "yellow-sun": {
-    gradient: "bg-gradient-radial from-white via-gray-200 to-gray-400",
-    innerGlow: "shadow-[inset_0_0_18px_rgba(255,255,255,0.85)]",
-    pulseColor: "rgba(255,255,255,0.35)",
-  },
-  "neutron": {
-    gradient: "bg-gradient-radial from-white via-gray-300 to-gray-600",
-    innerGlow: "shadow-[inset_0_0_30px_rgba(255,255,255,0.95)]",
-    pulseColor: "rgba(255,255,255,0.6)",
-  },
-  "binary": {
-    gradient: "bg-gradient-radial from-white via-gray-200 to-gray-500",
-    innerGlow: "shadow-[inset_0_0_20px_rgba(255,255,255,0.85)]",
-    pulseColor: "rgba(255,255,255,0.4)",
-  },
+// Map star types to their NASA image paths
+const starImages: Record<StarType, string> = {
+  "red-giant": "/stars/red-giant.jpeg",
+  "blue-supergiant": "/stars/blue-supergiant.jpg",
+  "white-dwarf": "/stars/white-dwarf.jpeg",
+  "yellow-sun": "/stars/yellow-sun.jpeg",
+  "neutron": "/stars/neutron.jpeg",
+  "binary": "/stars/binary.jpg",
 }
 
 export function StarAvatar({
@@ -68,12 +41,10 @@ export function StarAvatar({
   className,
   showGlow = true
 }: StarAvatarProps) {
-  const config = starTypeConfig[starType]
-
   return (
     <div
       className={cn(
-        "relative rounded-full flex items-center justify-center",
+        "relative rounded-full flex items-center justify-center overflow-hidden",
         sizeClasses[size],
         showGlow && glowSizeClasses[size],
         className
@@ -92,49 +63,20 @@ export function StarAvatar({
         />
       )}
 
-      {/* Main star body */}
-      <div
-        className={cn(
-          "absolute inset-0 rounded-full",
-          config.gradient,
-          config.innerGlow
-        )}
+      {/* Star image */}
+      <Image
+        src={starImages[starType]}
+        alt={STAR_TYPE_NAMES[starType]}
+        fill
+        className="object-cover rounded-full"
+        sizes="(max-width: 96px) 96px"
       />
 
-      {/* Binary star overlay - shows two overlapping circles */}
-      {starType === "binary" && (
-        <>
-          <div
-            className="absolute w-[45%] h-[45%] rounded-full bg-white/90 top-[20%] left-[15%]"
-            style={{
-              boxShadow: "inset 0 0 10px rgba(255,255,255,1)",
-            }}
-          />
-          <div
-            className="absolute w-[45%] h-[45%] rounded-full bg-white/70 bottom-[20%] right-[15%]"
-            style={{
-              boxShadow: "inset 0 0 8px rgba(255,255,255,0.9)",
-            }}
-          />
-        </>
-      )}
-
-      {/* Neutron star center core */}
-      {starType === "neutron" && (
-        <div
-          className="absolute w-[30%] h-[30%] rounded-full bg-white animate-pulse"
-          style={{
-            boxShadow: "0 0 15px rgba(255,255,255,1), 0 0 30px rgba(255,255,255,0.5)",
-            animationDuration: "1s",
-          }}
-        />
-      )}
-
-      {/* Surface texture overlay */}
+      {/* Subtle vignette overlay */}
       <div
-        className="absolute inset-0 rounded-full opacity-20"
+        className="absolute inset-0 rounded-full opacity-30"
         style={{
-          background: `radial-gradient(circle at 30% 30%, transparent 0%, rgba(0,0,0,0.3) 100%)`,
+          background: `radial-gradient(circle at 50% 50%, transparent 40%, rgba(0,0,0,0.6) 100%)`,
         }}
       />
     </div>
