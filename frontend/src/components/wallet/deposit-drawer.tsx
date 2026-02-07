@@ -16,7 +16,7 @@ import { useWallet } from "@/components/providers/wallet-provider"
 import { useTelegram } from "@/components/providers/telegram-provider"
 import { haptics } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
-import { getSupportedDepositChains, type BridgeChainInfo, type BridgeChain } from "@/lib/services/circle/bridge-kit"
+import { getSupportedDepositChains, type BridgeChainInfo, type VoidMarketChain } from "@/lib/services/circle/bridge-kit"
 
 interface DepositDrawerProps {
   isOpen: boolean
@@ -32,7 +32,7 @@ export function DepositDrawer({ isOpen, onClose }: DepositDrawerProps) {
   const supportedChains = getSupportedDepositChains()
 
   // Bridge states
-  const [bridgingChain, setBridgingChain] = useState<BridgeChain | null>(null)
+  const [bridgingChain, setBridgingChain] = useState<VoidMarketChain | null>(null)
   const [bridgeAmount, setBridgeAmount] = useState("")
   const [isBridging, setIsBridging] = useState(false)
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("idle")
@@ -120,7 +120,7 @@ export function DepositDrawer({ isOpen, onClose }: DepositDrawerProps) {
     [refreshBalance]
   )
 
-  const handleBridge = async (chain: BridgeChain) => {
+  const handleBridge = async (chain: VoidMarketChain) => {
     const amount = parseFloat(bridgeAmount)
     if (!amount || amount <= 0) {
       setBridgeError("Enter a valid amount greater than 0")

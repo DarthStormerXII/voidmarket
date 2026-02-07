@@ -9,3 +9,4 @@ export * from './wallet';
 export * from './transaction';
 export * from './gateway';
 export * from './bridge';
+export * from './bridge-kit';
