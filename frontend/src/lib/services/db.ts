@@ -401,3 +401,257 @@ export async function getClusterByNameForENS(name: string): Promise<ResolvedEnti
 
   return { type: 'cluster', textRecords };
 }
+
+// ─── Bet CRUD ───────────────────────────────────────────────
+
+export async function insertBet(data: {
+  betId: number;
+  marketId: number;
+  bettorAddress: string;
+  telegramUserId?: string;
+  commitmentHash: string;
+  amount: number;
+  txHash?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('voidmarket_bets').insert({
+    bet_id: data.betId,
+    market_id: data.marketId,
+    bettor_address: data.bettorAddress,
+    telegram_user_id: data.telegramUserId ?? null,
+    commitment_hash: data.commitmentHash,
+    amount: data.amount,
+    status: 'placed',
+    tx_hash: data.txHash ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function getBetByOnChainId(betId: number) {
+  const { data: row, error } = await supabase
+    .from('voidmarket_bets')
+    .select()
+    .eq('bet_id', betId)
+    .maybeSingle();
+  if (error) throw error;
+  return row;
+}
+
+export async function getBetsByMarketId(marketId: number) {
+  const { data: rows, error } = await supabase
+    .from('voidmarket_bets')
+    .select()
+    .eq('market_id', marketId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return rows || [];
+}
+
+export async function getBetsByTelegramUser(telegramUserId: string) {
+  const { data: rows, error } = await supabase
+    .from('voidmarket_bets')
+    .select()
+    .eq('telegram_user_id', telegramUserId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return rows || [];
+}
+
+export async function updateBetStatus(betId: number, status: string, direction?: boolean) {
+  const update: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  if (direction !== undefined) update.direction = direction;
+
+  const { error } = await supabase
+    .from('voidmarket_bets')
+    .update(update)
+    .eq('bet_id', betId);
+  if (error) throw error;
+}
+
+// ─── Transaction CRUD ───────────────────────────────────────
+
+export async function insertTransaction(data: {
+  telegramUserId: string;
+  type: string;
+  amount: number;
+  chain?: string;
+  txHash?: string;
+  status?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await supabase.from('voidmarket_transactions').insert({
+    telegram_user_id: data.telegramUserId,
+    type: data.type,
+    amount: data.amount,
+    chain: data.chain ?? null,
+    tx_hash: data.txHash ?? null,
+    status: data.status || 'pending',
+    metadata: data.metadata || {},
+  });
+  if (error) throw error;
+}
+
+export async function getTransactionsByUser(telegramUserId: string) {
+  const { data: rows, error } = await supabase
+    .from('voidmarket_transactions')
+    .select()
+    .eq('telegram_user_id', telegramUserId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return rows || [];
+}
+
+export async function updateTransactionStatus(txHash: string, status: string) {
+  const { error } = await supabase
+    .from('voidmarket_transactions')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('tx_hash', txHash);
+  if (error) throw error;
+}
+
+// ─── Cluster Member CRUD ────────────────────────────────────
+
+export async function upsertClusterMember(data: {
+  clusterId: number;
+  memberAddress: string;
+  role?: string;
+  isActive?: boolean;
+}): Promise<void> {
+  const { error } = await supabase.from('voidmarket_cluster_members').upsert(
+    {
+      cluster_id: data.clusterId,
+      member_address: data.memberAddress,
+      role: data.role || 'member',
+      is_active: data.isActive ?? true,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'cluster_id,member_address' }
+  );
+  if (error) throw error;
+}
+
+export async function getClusterMembers(clusterId: number) {
+  const { data: rows, error } = await supabase
+    .from('voidmarket_cluster_members')
+    .select()
+    .eq('cluster_id', clusterId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return rows || [];
+}
+
+export async function deactivateClusterMember(clusterId: number, memberAddress: string) {
+  const { error } = await supabase
+    .from('voidmarket_cluster_members')
+    .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq('cluster_id', clusterId)
+    .eq('member_address', memberAddress);
+  if (error) throw error;
+}
+
+// ─── Nova CRUD ──────────────────────────────────────────────
+
+export async function insertNova(data: {
+  novaId: number;
+  challengerClusterId: number;
+  defenderClusterId: number;
+  prizePool: number;
+  status?: string;
+}): Promise<void> {
+  const { error } = await supabase.from('voidmarket_novas').insert({
+    nova_id: data.novaId,
+    challenger_cluster_id: data.challengerClusterId,
+    defender_cluster_id: data.defenderClusterId,
+    prize_pool: data.prizePool,
+    status: data.status || 'pending',
+  });
+  if (error) throw error;
+}
+
+export async function getNovaById(novaId: number) {
+  const { data: row, error } = await supabase
+    .from('voidmarket_novas')
+    .select()
+    .eq('nova_id', novaId)
+    .maybeSingle();
+  if (error) throw error;
+  return row;
+}
+
+export async function updateNovaStatus(novaId: number, status: string, winnerClusterId?: number) {
+  const update: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  if (winnerClusterId !== undefined) update.winner_cluster_id = winnerClusterId;
+
+  const { error } = await supabase
+    .from('voidmarket_novas')
+    .update(update)
+    .eq('nova_id', novaId);
+  if (error) throw error;
+}
+
+// ─── Nova Match CRUD ────────────────────────────────────────
+
+export async function insertNovaMatch(data: {
+  matchId: number;
+  novaId: number;
+  round: number;
+  challengerAddress: string;
+  defenderAddress: string;
+  marketId?: number;
+}): Promise<void> {
+  const { error } = await supabase.from('voidmarket_nova_matches').insert({
+    match_id: data.matchId,
+    nova_id: data.novaId,
+    round: data.round,
+    challenger_address: data.challengerAddress,
+    defender_address: data.defenderAddress,
+    market_id: data.marketId ?? null,
+  });
+  if (error) throw error;
+}
+
+export async function getNovaMatchesByNovaId(novaId: number) {
+  const { data: rows, error } = await supabase
+    .from('voidmarket_nova_matches')
+    .select()
+    .eq('nova_id', novaId)
+    .order('round', { ascending: true });
+  if (error) throw error;
+  return rows || [];
+}
+
+export async function updateMatchResult(matchId: number, winnerAddress: string) {
+  const { error } = await supabase
+    .from('voidmarket_nova_matches')
+    .update({ winner_address: winnerAddress, updated_at: new Date().toISOString() })
+    .eq('match_id', matchId);
+  if (error) throw error;
+}
+
+// ─── Leaderboard Queries ────────────────────────────────────
+
+export async function getTopStarsByPhotons(limit = 20) {
+  const { data: rows, error } = await supabase
+    .from('voidmarket_stars')
+    .select()
+    .order('total_photons', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (rows || []).map(mapStar);
+}
+
+export async function getTopStarsByActivity(limit = 20) {
+  const { data: rows, error } = await supabase
+    .from('voidmarket_stars')
+    .select()
+    .order('bets_won', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (rows || []).map(mapStar);
+}
