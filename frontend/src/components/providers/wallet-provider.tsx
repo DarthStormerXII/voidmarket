@@ -46,6 +46,7 @@ interface WalletContextType {
   leaveCluster: () => Promise<{ transactionId: string }>;
   startNova: (cluster1Id: number, cluster2Id: number, totalRounds: number, prizePool: number) => Promise<{ transactionId: string }>;
   pollTransaction: (txId: string) => Promise<TransactionResult>;
+  bridgeDeposit: (sourceChain: string, amount: number) => Promise<{ transactionId: string }>;
 }
 
 const WalletContext = createContext<WalletContextType>({
@@ -71,6 +72,7 @@ const WalletContext = createContext<WalletContextType>({
     transactionId: "",
     status: "PENDING",
   }),
+  bridgeDeposit: async () => ({ transactionId: "" }),
 });
 
 export function useWallet() {
@@ -455,6 +457,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  // Bridge deposit from source chain to Arc Testnet via CCTP
+  const bridgeDeposit = useCallback(
+    async (
+      sourceChain: string,
+      amount: number
+    ): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/deposit/bridge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telegramUserId,
+          sourceChain,
+          amount,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to bridge deposit");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
   return (
     <WalletContext.Provider
       value={{
@@ -477,6 +508,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         leaveCluster,
         startNova,
         pollTransaction,
+        bridgeDeposit,
       }}
     >
       {children}

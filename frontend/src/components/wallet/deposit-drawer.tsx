@@ -1,29 +1,53 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import {
   Copy,
   Check,
   ExternalLink,
   X,
   ArrowDownLeft,
+  ArrowRightLeft,
+  Loader2,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useWallet } from "@/components/providers/wallet-provider"
+import { useTelegram } from "@/components/providers/telegram-provider"
 import { haptics } from "@/lib/haptics"
 import { cn } from "@/lib/utils"
-import { getSupportedDepositChains, type BridgeChainInfo } from "@/lib/services/circle/bridge-kit"
+import { getSupportedDepositChains, type BridgeChainInfo, type BridgeChain } from "@/lib/services/circle/bridge-kit"
 
 interface DepositDrawerProps {
   isOpen: boolean
   onClose: () => void
 }
 
+type BridgeStatus = "idle" | "bridging" | "polling" | "confirmed" | "failed"
+
 export function DepositDrawer({ isOpen, onClose }: DepositDrawerProps) {
-  const { address } = useWallet()
+  const { address, refreshBalance } = useWallet()
+  const { user } = useTelegram()
   const [copied, setCopied] = useState(false)
   const supportedChains = getSupportedDepositChains()
+
+  // Bridge states
+  const [bridgingChain, setBridgingChain] = useState<BridgeChain | null>(null)
+  const [bridgeAmount, setBridgeAmount] = useState("")
+  const [isBridging, setIsBridging] = useState(false)
+  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("idle")
+  const [bridgeTxId, setBridgeTxId] = useState<string | null>(null)
+  const [bridgeError, setBridgeError] = useState<string | null>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+      }
+    }
+  }, [])
 
   const handleCopy = () => {
     if (!address) return
@@ -31,6 +55,113 @@ export function DepositDrawer({ isOpen, onClose }: DepositDrawerProps) {
     navigator.clipboard.writeText(address)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const resetBridgeState = () => {
+    setBridgingChain(null)
+    setBridgeAmount("")
+    setIsBridging(false)
+    setBridgeStatus("idle")
+    setBridgeTxId(null)
+    setBridgeError(null)
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }
+
+  const pollTransactionStatus = useCallback(
+    (txId: string) => {
+      setBridgeStatus("polling")
+      let attempts = 0
+      const maxAttempts = 240 // ~20 minutes at 5-second intervals
+
+      pollIntervalRef.current = setInterval(async () => {
+        attempts++
+
+        try {
+          const response = await fetch(`/api/transaction/${txId}`)
+          if (!response.ok) {
+            throw new Error("Failed to poll transaction")
+          }
+
+          const data = await response.json()
+
+          if (data.status === "CONFIRMED") {
+            setBridgeStatus("confirmed")
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+            // Refresh balance after successful bridge
+            await refreshBalance()
+          } else if (data.status === "FAILED" || data.status === "CANCELLED") {
+            setBridgeStatus("failed")
+            setBridgeError(data.errorReason || "Bridge transfer failed")
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current)
+              pollIntervalRef.current = null
+            }
+          }
+        } catch (err) {
+          console.error("[DepositDrawer] Poll error:", err)
+        }
+
+        if (attempts >= maxAttempts) {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          setBridgeStatus("failed")
+          setBridgeError("Bridge timed out. The transfer may still complete -- check your balance later.")
+        }
+      }, 5000)
+    },
+    [refreshBalance]
+  )
+
+  const handleBridge = async (chain: BridgeChain) => {
+    const amount = parseFloat(bridgeAmount)
+    if (!amount || amount <= 0) {
+      setBridgeError("Enter a valid amount greater than 0")
+      return
+    }
+
+    const telegramUserId = user?.id || "test_user_123"
+
+    setIsBridging(true)
+    setBridgeStatus("bridging")
+    setBridgeError(null)
+    haptics.buttonTap()
+
+    try {
+      const response = await fetch("/api/deposit/bridge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telegramUserId,
+          sourceChain: chain,
+          amount,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to initiate bridge")
+      }
+
+      const data = await response.json()
+      setBridgeTxId(data.transactionId)
+      setIsBridging(false)
+
+      // Start polling for transaction completion
+      pollTransactionStatus(data.transactionId)
+    } catch (err) {
+      console.error("[DepositDrawer] Bridge error:", err)
+      setBridgeError(err instanceof Error ? err.message : "Failed to bridge deposit")
+      setIsBridging(false)
+      setBridgeStatus("failed")
+    }
   }
 
   if (!isOpen) return null
@@ -114,7 +245,13 @@ export function DepositDrawer({ isOpen, onClose }: DepositDrawerProps) {
                 <div className="flex items-start gap-3">
                   <span className="font-[family-name:var(--font-display)] text-xs text-primary font-bold">3</span>
                   <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
-                    Your balance will update automatically
+                    Click &quot;Bridge to Arc&quot; to move funds cross-chain via CCTP
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="font-[family-name:var(--font-display)] text-xs text-primary font-bold">4</span>
+                  <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
+                    Your balance will update once the bridge completes (~15-20 min)
                   </p>
                 </div>
               </div>
@@ -146,17 +283,161 @@ export function DepositDrawer({ isOpen, onClose }: DepositDrawerProps) {
                           </p>
                         </div>
                       </div>
-                      {address && (
-                        <a
-                          href={`${chain.explorerUrl}/address/${address}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-2 rounded-lg hover:bg-void-surface transition-colors"
+                      <div className="flex items-center gap-2">
+                        {address && (
+                          <a
+                            href={`${chain.explorerUrl}/address/${address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg hover:bg-void-surface transition-colors"
+                          >
+                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          </a>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs font-[family-name:var(--font-display)] uppercase tracking-wider border-primary/30 hover:bg-primary/10"
+                          onClick={() => {
+                            haptics.buttonTap()
+                            if (bridgingChain === chain.id) {
+                              resetBridgeState()
+                            } else {
+                              resetBridgeState()
+                              setBridgingChain(chain.id)
+                            }
+                          }}
+                          disabled={isBridging || bridgeStatus === "polling"}
                         >
-                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                        </a>
-                      )}
+                          <ArrowRightLeft className="h-3 w-3 mr-1" />
+                          Bridge
+                        </Button>
+                      </div>
                     </div>
+
+                    {/* Bridge Input — shown when this chain is selected */}
+                    {bridgingChain === chain.id && (
+                      <div className="mt-3 pt-3 border-t border-void-surface space-y-3">
+                        {/* Amount Input */}
+                        {bridgeStatus === "idle" && (
+                          <>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                placeholder="Amount (USDC)"
+                                value={bridgeAmount}
+                                onChange={(e) => {
+                                  setBridgeAmount(e.target.value)
+                                  setBridgeError(null)
+                                }}
+                                min="0"
+                                step="0.01"
+                                className="flex-1 bg-void-surface border border-void-surface rounded-lg px-3 py-2 text-sm font-[family-name:var(--font-mono)] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+                              />
+                              <Button
+                                size="sm"
+                                className="font-[family-name:var(--font-display)] uppercase tracking-wider text-xs"
+                                onClick={() => handleBridge(chain.id)}
+                                disabled={isBridging || !bridgeAmount}
+                              >
+                                {isBridging ? (
+                                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                ) : null}
+                                Bridge to Arc
+                              </Button>
+                            </div>
+                            <p className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground">
+                              CCTP bridge transfers typically take 15-20 minutes to complete.
+                            </p>
+                          </>
+                        )}
+
+                        {/* Bridging / Submitting */}
+                        {bridgeStatus === "bridging" && (
+                          <div className="flex items-center gap-2 py-2">
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
+                              Initiating CCTP bridge transfer...
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Polling — waiting for confirmation */}
+                        {bridgeStatus === "polling" && (
+                          <div className="space-y-2 py-2">
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                              <p className="font-[family-name:var(--font-body)] text-xs text-foreground">
+                                Bridge in progress...
+                              </p>
+                            </div>
+                            {bridgeTxId && (
+                              <p className="font-[family-name:var(--font-mono)] text-[10px] text-muted-foreground break-all">
+                                TX: {bridgeTxId}
+                              </p>
+                            )}
+                            <p className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground">
+                              CCTP bridge transfers take ~15-20 minutes. You can close this drawer and your balance will update automatically.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Confirmed */}
+                        {bridgeStatus === "confirmed" && (
+                          <div className="space-y-2 py-2">
+                            <div className="flex items-center gap-2">
+                              <Check className="h-4 w-4 text-green-400" />
+                              <p className="font-[family-name:var(--font-body)] text-xs text-green-400">
+                                Bridge transfer confirmed!
+                              </p>
+                            </div>
+                            <p className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground">
+                              Your USDC has arrived on Arc Testnet. Balance has been refreshed.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs font-[family-name:var(--font-display)] uppercase tracking-wider"
+                              onClick={resetBridgeState}
+                            >
+                              Done
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Failed */}
+                        {bridgeStatus === "failed" && (
+                          <div className="space-y-2 py-2">
+                            <div className="flex items-center gap-2">
+                              <X className="h-4 w-4 text-red-400" />
+                              <p className="font-[family-name:var(--font-body)] text-xs text-red-400">
+                                Bridge transfer failed
+                              </p>
+                            </div>
+                            {bridgeError && (
+                              <p className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground">
+                                {bridgeError}
+                              </p>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs font-[family-name:var(--font-display)] uppercase tracking-wider"
+                              onClick={resetBridgeState}
+                            >
+                              Try Again
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Error message (for validation errors in idle state) */}
+                        {bridgeError && bridgeStatus === "idle" && (
+                          <p className="font-[family-name:var(--font-body)] text-[10px] text-red-400">
+                            {bridgeError}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

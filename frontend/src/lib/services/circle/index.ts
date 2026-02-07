@@ -8,3 +8,4 @@ export * from './client';
 export * from './wallet';
 export * from './transaction';
 export * from './gateway';
+export * from './bridge';
