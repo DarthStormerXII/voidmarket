@@ -25,9 +25,13 @@ import { toBet } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
 import { useWallet } from "@/components/providers/wallet-provider"
+import { DepositDrawer } from "@/components/wallet/deposit-drawer"
+import { WithdrawDrawer } from "@/components/wallet/withdraw-drawer"
 
 export default function WalletPage() {
   const [copied, setCopied] = useState(false)
+  const [depositOpen, setDepositOpen] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
 
   // Use real wallet data from WalletProvider
   const { address, totalBalance, arcBalance, isLoading, error } = useWallet()
@@ -131,11 +135,11 @@ export default function WalletPage() {
 
             {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-3 mt-4">
-              <Button variant="default" size="lg" onClick={() => haptics.buttonTap()}>
+              <Button variant="default" size="lg" onClick={() => { haptics.buttonTap(); setDepositOpen(true) }}>
                 <ArrowDownLeft className="h-4 w-4 mr-2" />
                 DEPOSIT
               </Button>
-              <Button variant="outline" size="lg" onClick={() => haptics.buttonTap()}>
+              <Button variant="outline" size="lg" onClick={() => { haptics.buttonTap(); setWithdrawOpen(true) }}>
                 <ArrowUpRight className="h-4 w-4 mr-2" />
                 WITHDRAW
               </Button>
@@ -229,6 +233,9 @@ export default function WalletPage() {
           )}
         </div>
       </div>
+
+      <DepositDrawer isOpen={depositOpen} onClose={() => setDepositOpen(false)} />
+      <WithdrawDrawer isOpen={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
 
       <BottomNav />
     </div>

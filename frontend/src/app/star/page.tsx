@@ -29,6 +29,8 @@ import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
 import { BetStatus, StarType } from "@/types"
 import { useTelegram } from "@/components/providers/telegram-provider"
+import { DepositDrawer } from "@/components/wallet/deposit-drawer"
+import { WithdrawDrawer } from "@/components/wallet/withdraw-drawer"
 
 const betFilterTabs: { id: BetStatus | "all"; label: string }[] = [
   { id: "all", label: "ALL" },
@@ -40,11 +42,13 @@ const betFilterTabs: { id: BetStatus | "all"; label: string }[] = [
 export default function StarPage() {
   const [copied, setCopied] = useState(false)
   const [selectedBetFilter, setSelectedBetFilter] = useState<BetStatus | "all">("all")
+  const [depositOpen, setDepositOpen] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
 
   const { user } = useTelegram()
   const { star, isLoading: starLoading } = useStar()
   const { bets: apiBets, isLoading: betsLoading } = useUserBets()
-  const { address, totalBalance, arcBalance } = useWallet()
+  const { address, totalBalance, arcBalance, claimBet, pollTransaction, refreshBalance } = useWallet()
   const { clusters: apiClusters } = useClusters()
 
   // Derive star info from available data
@@ -80,9 +84,18 @@ export default function StarPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleClaim = (betId: string) => {
+  const handleClaim = async (betId: string) => {
     haptics.success()
-    console.log("Claiming bet:", betId)
+    try {
+      const { transactionId } = await claimBet(parseInt(betId))
+      const result = await pollTransaction(transactionId)
+      if (result.status === "CONFIRMED") {
+        haptics.success()
+        await refreshBalance()
+      }
+    } catch (err) {
+      console.error("Failed to claim:", err)
+    }
   }
 
   return (
@@ -217,11 +230,11 @@ export default function StarPage() {
 
               {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-3">
-                <Button variant="default" size="lg" onClick={() => haptics.buttonTap()}>
+                <Button variant="default" size="lg" onClick={() => { haptics.buttonTap(); setDepositOpen(true) }}>
                   <ArrowDownLeft className="h-4 w-4 mr-2" />
                   DEPOSIT
                 </Button>
-                <Button variant="outline" size="lg" onClick={() => haptics.buttonTap()}>
+                <Button variant="outline" size="lg" onClick={() => { haptics.buttonTap(); setWithdrawOpen(true) }}>
                   <ArrowUpRight className="h-4 w-4 mr-2" />
                   WITHDRAW
                 </Button>
@@ -295,6 +308,9 @@ export default function StarPage() {
           )}
         </div>
       </div>
+
+      <DepositDrawer isOpen={depositOpen} onClose={() => setDepositOpen(false)} />
+      <WithdrawDrawer isOpen={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
 
       <BottomNav />
     </div>

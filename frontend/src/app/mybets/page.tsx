@@ -12,6 +12,7 @@ import { toBet } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { BetStatus } from "@/types"
 import { haptics } from "@/lib/haptics"
+import { useWallet } from "@/components/providers/wallet-provider"
 
 const filterTabs: { id: BetStatus | "all"; label: string }[] = [
   { id: "all", label: "ALL" },
@@ -23,6 +24,7 @@ const filterTabs: { id: BetStatus | "all"; label: string }[] = [
 export default function MyBetsPage() {
   const [selectedFilter, setSelectedFilter] = useState<BetStatus | "all">("all")
   const { bets: apiBets, isLoading } = useUserBets()
+  const { claimBet, pollTransaction, refreshBalance } = useWallet()
 
   const allBets = apiBets.map(b => toBet(b))
 
@@ -42,8 +44,18 @@ export default function MyBetsPage() {
       .reduce((acc, b) => acc + (b.payout || 0), 0),
   }
 
-  const handleClaim = (betId: string) => {
-    console.log("Claiming bet:", betId)
+  const handleClaim = async (betId: string) => {
+    haptics.buttonTap()
+    try {
+      const { transactionId } = await claimBet(parseInt(betId))
+      const result = await pollTransaction(transactionId)
+      if (result.status === "CONFIRMED") {
+        haptics.success()
+        await refreshBalance()
+      }
+    } catch (err) {
+      console.error("Failed to claim:", err)
+    }
   }
 
   return (

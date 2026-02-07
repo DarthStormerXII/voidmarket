@@ -22,9 +22,11 @@ import { useClusters } from "@/hooks/use-clusters"
 import { toCluster } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
+import { useWallet } from "@/components/providers/wallet-provider"
 
 export default function ClustersPage() {
   const router = useRouter()
+  const { leaveCluster, pollTransaction } = useWallet()
 
   const { star, isLoading: starLoading } = useStar()
   const { cluster: apiCluster, members: apiMembers, isLoading: clusterLoading } = useCluster(star?.clusterId ?? null)
@@ -61,16 +63,26 @@ export default function ClustersPage() {
     ? [...userCluster.members].sort((a, b) => b.photons - a.photons)
     : []
 
-  const handleStartNova = () => {
+  const handleStartNova = async () => {
     haptics.buttonTap()
-    // TODO: Implement nova matchmaking
-    console.log("Starting nova...")
+    alert("Nova matchmaking coming soon! Select an opponent cluster to start.")
   }
 
-  const handleLeaveCluster = () => {
+  const handleLeaveCluster = async () => {
     haptics.buttonTap()
-    // TODO: Implement leave cluster
-    console.log("Leaving cluster...")
+    if (!confirm("Are you sure you want to leave this cluster?")) return
+    try {
+      const { transactionId } = await leaveCluster()
+      const result = await pollTransaction(transactionId)
+      if (result.status === "CONFIRMED") {
+        haptics.success()
+        router.push("/clusters")
+        router.refresh()
+      }
+    } catch (err) {
+      console.error("Failed to leave cluster:", err)
+      alert("Failed to leave cluster")
+    }
   }
 
   return (

@@ -286,7 +286,9 @@ export default function OnboardingPage() {
                 size="lg"
                 onClick={() => {
                   haptics.buttonTap()
-                  // TODO: Connect wallet and deposit
+                  // Wallet is auto-initialized by WalletProvider
+                  // Show deposit info or skip to completion
+                  handleNext("complete")
                 }}
                 className="w-full"
               >

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, GitFork, Plus, Search, Lock } from "lucide-react"
+import { ChevronLeft, GitFork, Plus, Search } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -62,30 +62,26 @@ export default function CreatePage() {
             </CardContent>
           </Card>
 
-          {/* Create New Market - Disabled */}
-          <Card className="bg-void-deep border-void-surface opacity-50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-void-surface flex items-center justify-center">
-                  <Plus className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-[family-name:var(--font-display)] text-sm font-semibold text-muted-foreground uppercase">
+          {/* Create New Market */}
+          <Link href="/create/new" onClick={() => haptics.buttonTap()}>
+            <Card className="bg-void-mid border-white/30 hover:border-primary/30 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center">
+                    <Plus className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground uppercase">
                       CREATE NEW MARKET
                     </h3>
-                    <Badge variant="outline" className="text-[10px]">
-                      COMING SOON
-                    </Badge>
+                    <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground mt-1">
+                      Create original public markets
+                    </p>
                   </div>
-                  <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground mt-1">
-                    Create original public markets
-                  </p>
                 </div>
-                <Lock className="h-5 w-5 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         </div>
 
         <div className="h-px bg-void-surface" />

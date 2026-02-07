@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { BottomNav } from "@/components/layout/bottom-nav"
 import { haptics } from "@/lib/haptics"
+import { useWallet } from "@/components/providers/wallet-provider"
 
 export default function CreateClusterPage() {
   const router = useRouter()
+  const { createCluster, pollTransaction } = useWallet()
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [telegramIds, setTelegramIds] = useState<string[]>([])
@@ -37,11 +39,21 @@ export default function CreateClusterPage() {
     haptics.buttonTap()
     setIsCreating(true)
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    haptics.success()
-    router.push("/clusters")
+    try {
+      const { transactionId } = await createCluster(name.trim(), false)
+      const result = await pollTransaction(transactionId)
+      if (result.status === "CONFIRMED") {
+        haptics.success()
+        router.push("/clusters")
+      } else {
+        alert("Cluster creation failed")
+      }
+    } catch (err) {
+      console.error("Failed to create cluster:", err)
+      alert("Failed to create cluster")
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   return (
