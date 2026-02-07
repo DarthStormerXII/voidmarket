@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { VoidBlackHole } from "@/components/ui/void-black-hole";
 import { TelegramProvider } from "@/components/providers/telegram-provider";
 import { WalletProvider } from "@/components/providers/wallet-provider";
+import { OnboardingGuard } from "@/components/providers/onboarding-guard";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
@@ -70,9 +71,11 @@ export default function RootLayout({
         <TelegramProvider>
           <WalletProvider>
             <VoidBlackHole />
-            <div className="relative z-10">
-              {children}
-            </div>
+            <OnboardingGuard>
+              <div className="relative z-10">
+                {children}
+              </div>
+            </OnboardingGuard>
             <Toaster />
           </WalletProvider>
         </TelegramProvider>
