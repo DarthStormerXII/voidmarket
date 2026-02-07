@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Flame, Clock, Timer, ChevronRight } from "lucide-react"
+import { Flame, Clock, Timer, ChevronRight, Trophy } from "lucide-react"
 import { VoidLogo } from "@/components/ui/void-logo"
 import { MarketCard } from "@/components/market/market-card"
 import { TopClustersSection } from "@/components/cluster/top-clusters-section"
@@ -134,6 +134,18 @@ export default function HomePage() {
       {/* Top Clusters */}
       <section className="px-4 mb-6">
         <TopClustersSection />
+
+        <Link
+          href="/leaderboard"
+          onClick={() => haptics.buttonTap()}
+          className="flex items-center justify-center gap-2 mt-4 py-3 rounded-lg border border-void-surface hover:border-white/30 transition-colors"
+        >
+          <Trophy className="h-4 w-4 text-muted-foreground" />
+          <span className="font-[family-name:var(--font-display)] text-xs text-muted-foreground uppercase tracking-wider">
+            VIEW LEADERBOARD
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </Link>
       </section>
 
       {/* Bottom Navigation */}
