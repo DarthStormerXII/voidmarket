@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getWalletByRefId } from '@/lib/services/circle/wallet';
+import { getOrCreateWallet } from '@/lib/services/circle/wallet';
 import {
   upsertStar,
   getStarByTelegramId,
@@ -83,23 +83,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get wallet address
+    // Get or create wallet
     const refId = `tg_${telegramUserId}`;
-    const wallet = await getWalletByRefId(refId);
-
-    if (!wallet) {
-      return NextResponse.json(
-        { error: 'Wallet not found. Create a wallet first.' },
-        { status: 404 }
-      );
-    }
+    const wallet = await getOrCreateWallet(refId);
 
     // Upsert star in DB
     const dbStar = await upsertStar({
       name,
       walletAddress: wallet.address,
       telegramId: telegramUserId,
-      circleWalletId: wallet.id,
+      circleWalletId: wallet.walletId,
       starType,
       description,
     });
@@ -115,7 +108,7 @@ export async function POST(request: NextRequest) {
       betsLost: dbStar.betsLost,
     };
 
-    return NextResponse.json({ star });
+    return NextResponse.json({ star, walletAddress: wallet.address });
   } catch (error) {
     console.error('[API /star POST] Error:', error);
     return NextResponse.json(
