@@ -70,19 +70,15 @@ export async function POST(request: NextRequest) {
 
     // Auto-register cluster for ENS resolution (non-blocking)
     try {
-      const { PrismaClient } = await import('@/generated/prisma');
-      const prisma = new PrismaClient();
+      const { upsertClusterMetadata } = await import('@/lib/services/db');
 
       const tempId = Date.now();
 
-      await prisma.clusterMetadata.create({
-        data: {
-          onChainId: tempId,
-          name: name.toLowerCase().replace(/\s+/g, '-'),
-          description: body.description || null,
-        },
+      await upsertClusterMetadata({
+        onChainId: tempId,
+        name: name.toLowerCase().replace(/\s+/g, '-'),
+        description: body.description || undefined,
       });
-      await prisma.$disconnect();
     } catch (dbErr) {
       console.error('[API /cluster/create] DB registration error (non-critical):', dbErr);
     }

@@ -28,27 +28,19 @@ export async function GET(request: NextRequest) {
     // Auto-register star for ENS resolution (non-blocking)
     if (wallet.isNew) {
       try {
-        const { PrismaClient } = await import('@/generated/prisma');
-        const prisma = new PrismaClient();
+        const { upsertStar } = await import('@/lib/services/db');
 
         // Deterministic star type from address
         const starTypes = ['red-giant', 'blue-supergiant', 'white-dwarf', 'yellow-sun', 'neutron', 'binary'];
         const addressNum = parseInt(wallet.address.slice(2, 10), 16);
         const starType = starTypes[addressNum % starTypes.length];
 
-        await prisma.star.upsert({
-          where: { name: `star-${telegramUserId}` },
-          create: {
-            name: `star-${telegramUserId}`,
-            walletAddress: wallet.address,
-            telegramId: telegramUserId,
-            starType,
-          },
-          update: {
-            walletAddress: wallet.address,
-          },
+        await upsertStar({
+          name: `star-${telegramUserId}`,
+          walletAddress: wallet.address,
+          telegramId: telegramUserId,
+          starType,
         });
-        await prisma.$disconnect();
       } catch (dbErr) {
         console.error('[API /wallet] DB registration error (non-critical):', dbErr);
       }

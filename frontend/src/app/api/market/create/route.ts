@@ -79,8 +79,7 @@ export async function POST(request: NextRequest) {
 
     // Auto-register market for ENS resolution (non-blocking)
     try {
-      const { PrismaClient } = await import('@/generated/prisma');
-      const prisma = new PrismaClient();
+      const { upsertMarketMetadata } = await import('@/lib/services/db');
 
       // Create a slug from the question
       const slug = question
@@ -89,20 +88,16 @@ export async function POST(request: NextRequest) {
         .replace(/\s+/g, '-')
         .slice(0, 50);
 
-      // We don't know the on-chain ID yet (need to parse from tx receipt)
-      // Use a placeholder that can be updated later
+      // Placeholder on-chain ID (real ID requires parsing tx receipt)
       const tempId = Date.now();
 
-      await prisma.marketMetadata.create({
-        data: {
-          onChainId: tempId,
-          name: slug || `market-${tempId}`,
-          category: body.category || 'custom',
-          oracleType: body.oracleType || 'manual',
-          creatorName: `star-${telegramUserId}`,
-        },
+      await upsertMarketMetadata({
+        onChainId: tempId,
+        name: slug || `market-${tempId}`,
+        category: body.category || 'custom',
+        oracleType: body.oracleType || 'manual',
+        creatorName: `star-${telegramUserId}`,
       });
-      await prisma.$disconnect();
     } catch (dbErr) {
       console.error('[API /market/create] DB registration error (non-critical):', dbErr);
     }
