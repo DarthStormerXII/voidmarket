@@ -4,25 +4,18 @@ pragma solidity ^0.8.24;
 /**
  * @title VoidMarketResolver
  * @notice ENS CCIP-Read (EIP-3668) resolver for VoidMarket
- * @dev Implements off-chain resolution for subdomains:
- *      - username.voidmarket.eth → Star profile
- *      - market-slug.voidmarket.eth → Market data
- *      - cluster-name.voidmarket.eth → Cluster data
+ * @dev Implements IExtendedResolver.resolve() for off-chain resolution:
+ *      - username.voidmarket.eth → Star profile (wallet address)
+ *      - market-slug.voidmarket.eth → Market metadata
+ *      - cluster-name.voidmarket.eth → Cluster metadata
  *
- * The resolver returns OffchainLookup errors that direct clients
- * to the VoidMarket gateway server for actual resolution.
+ * The UniversalResolver calls resolve(name, data) which reverts with
+ * OffchainLookup, directing the client to the gateway server.
+ * The gateway signs the response, and resolveWithProof verifies it.
  */
 contract VoidMarketResolver {
     // ============ Errors ============
 
-    /**
-     * @notice EIP-3668 OffchainLookup error
-     * @param sender The address that raised the error
-     * @param urls Array of gateway URLs to try
-     * @param callData The calldata to send to the gateway
-     * @param callbackFunction The function selector for the callback
-     * @param extraData Extra data to pass to the callback
-     */
     error OffchainLookup(
         address sender,
         string[] urls,
@@ -36,19 +29,19 @@ contract VoidMarketResolver {
 
     // ============ Constants ============
 
-    // EIP-137: ENS Resolver interface IDs
     bytes4 private constant INTERFACE_META_ID = 0x01ffc9a7;           // supportsInterface
     bytes4 private constant ADDR_INTERFACE_ID = 0x3b3b57de;           // addr(bytes32)
     bytes4 private constant ADDR_MULTICHAIN_ID = 0xf1cb7e06;          // addr(bytes32,uint256)
     bytes4 private constant TEXT_INTERFACE_ID = 0x59d1d43c;           // text(bytes32,string)
     bytes4 private constant CONTENTHASH_INTERFACE_ID = 0xbc1c58d1;    // contenthash(bytes32)
     bytes4 private constant NAME_INTERFACE_ID = 0x691f3431;           // name(bytes32)
+    bytes4 private constant RESOLVE_INTERFACE_ID = 0x9061b923;        // resolve(bytes,bytes)
 
     // ============ State Variables ============
 
     address public owner;
     string[] public gatewayUrls;
-    address public signer;              // Address that signs gateway responses
+    address public signer;
     uint256 public signatureValidityPeriod = 5 minutes;
 
     // ============ Events ============
@@ -90,88 +83,33 @@ contract VoidMarketResolver {
         owner = newOwner;
     }
 
-    // ============ ENS Resolver Functions ============
+    // ============ IExtendedResolver ============
 
     /**
-     * @notice Resolve an address for a name (EIP-137)
-     * @param node The namehash of the name to resolve
-     * @return The resolved address (reverts with OffchainLookup)
+     * @notice EIP-3668 resolve entry point called by the UniversalResolver
+     * @param name DNS-encoded name (e.g., gabriel.voidmarket.eth)
+     * @param data ABI-encoded resolver call (e.g., addr(node), text(node,key))
+     * @return Always reverts with OffchainLookup
      */
-    function addr(bytes32 node) external view returns (address) {
-        bytes memory callData = abi.encodeWithSelector(
-            this.addr.selector,
-            node
-        );
+    function resolve(bytes calldata name, bytes calldata data) external view returns (bytes memory) {
+        bytes memory callData = abi.encode(name, data);
 
         revert OffchainLookup(
             address(this),
             gatewayUrls,
             callData,
-            this.addrWithProof.selector,
-            abi.encode(node)
+            this.resolveWithProof.selector,
+            callData
         );
     }
 
     /**
-     * @notice Callback for addr resolution with gateway proof
-     * @param response The response from the gateway
-     * @param extraData The extraData passed in OffchainLookup
-     * @return The resolved address
+     * @notice CCIP-Read callback — verifies gateway signature and returns result
+     * @param response ABI-encoded (bytes result, uint64 expires, bytes signature)
+     * @param extraData The original callData from OffchainLookup (= abi.encode(name, data))
+     * @return The verified resolution result
      */
-    function addrWithProof(
-        bytes calldata response,
-        bytes calldata extraData
-    ) external view returns (address) {
-        (address result, uint64 expires, bytes memory sig) = abi.decode(
-            response,
-            (address, uint64, bytes)
-        );
-
-        bytes32 node = abi.decode(extraData, (bytes32));
-
-        // Verify signature hasn't expired
-        if (block.timestamp > expires) revert SignatureExpired();
-
-        // Verify signature
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                keccak256(abi.encodePacked(node, result, expires))
-            )
-        );
-
-        address recoveredSigner = _recoverSigner(messageHash, sig);
-        if (recoveredSigner != signer) revert InvalidSignature();
-
-        return result;
-    }
-
-    /**
-     * @notice Resolve a multichain address (EIP-2304)
-     * @param node The namehash of the name
-     * @param coinType The coin type (60 = ETH)
-     * @return The resolved address as bytes
-     */
-    function addrMultichain(bytes32 node, uint256 coinType) external view returns (bytes memory) {
-        bytes memory callData = abi.encodeWithSelector(
-            bytes4(keccak256("addr(bytes32,uint256)")),
-            node,
-            coinType
-        );
-
-        revert OffchainLookup(
-            address(this),
-            gatewayUrls,
-            callData,
-            this.addrMultichainWithProof.selector,
-            abi.encode(node, coinType)
-        );
-    }
-
-    /**
-     * @notice Callback for multichain addr resolution
-     */
-    function addrMultichainWithProof(
+    function resolveWithProof(
         bytes calldata response,
         bytes calldata extraData
     ) external view returns (bytes memory) {
@@ -180,166 +118,14 @@ contract VoidMarketResolver {
             (bytes, uint64, bytes)
         );
 
-        (bytes32 node, uint256 coinType) = abi.decode(extraData, (bytes32, uint256));
-
         if (block.timestamp > expires) revert SignatureExpired();
 
+        // Verify signature: gateway signs keccak256(result || expires || extraData)
+        // using EIP-191 personal sign
         bytes32 messageHash = keccak256(
             abi.encodePacked(
                 "\x19Ethereum Signed Message:\n32",
-                keccak256(abi.encodePacked(node, coinType, result, expires))
-            )
-        );
-
-        address recoveredSigner = _recoverSigner(messageHash, sig);
-        if (recoveredSigner != signer) revert InvalidSignature();
-
-        return result;
-    }
-
-    /**
-     * @notice Resolve a text record (EIP-634)
-     * @param node The namehash of the name
-     * @param key The text record key
-     * @return The text record value (reverts with OffchainLookup)
-     */
-    function text(bytes32 node, string calldata key) external view returns (string memory) {
-        bytes memory callData = abi.encodeWithSelector(
-            this.text.selector,
-            node,
-            key
-        );
-
-        revert OffchainLookup(
-            address(this),
-            gatewayUrls,
-            callData,
-            this.textWithProof.selector,
-            abi.encode(node, key)
-        );
-    }
-
-    /**
-     * @notice Callback for text resolution with gateway proof
-     * @param response The response from the gateway
-     * @param extraData The extraData passed in OffchainLookup
-     * @return The resolved text value
-     */
-    function textWithProof(
-        bytes calldata response,
-        bytes calldata extraData
-    ) external view returns (string memory) {
-        (string memory result, uint64 expires, bytes memory sig) = abi.decode(
-            response,
-            (string, uint64, bytes)
-        );
-
-        (bytes32 node, string memory key) = abi.decode(extraData, (bytes32, string));
-
-        if (block.timestamp > expires) revert SignatureExpired();
-
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                keccak256(abi.encodePacked(node, key, result, expires))
-            )
-        );
-
-        address recoveredSigner = _recoverSigner(messageHash, sig);
-        if (recoveredSigner != signer) revert InvalidSignature();
-
-        return result;
-    }
-
-    /**
-     * @notice Resolve a content hash (EIP-1577)
-     * @param node The namehash of the name
-     * @return The content hash (reverts with OffchainLookup)
-     */
-    function contenthash(bytes32 node) external view returns (bytes memory) {
-        bytes memory callData = abi.encodeWithSelector(
-            this.contenthash.selector,
-            node
-        );
-
-        revert OffchainLookup(
-            address(this),
-            gatewayUrls,
-            callData,
-            this.contenthashWithProof.selector,
-            abi.encode(node)
-        );
-    }
-
-    /**
-     * @notice Callback for contenthash resolution
-     */
-    function contenthashWithProof(
-        bytes calldata response,
-        bytes calldata extraData
-    ) external view returns (bytes memory) {
-        (bytes memory result, uint64 expires, bytes memory sig) = abi.decode(
-            response,
-            (bytes, uint64, bytes)
-        );
-
-        bytes32 node = abi.decode(extraData, (bytes32));
-
-        if (block.timestamp > expires) revert SignatureExpired();
-
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                keccak256(abi.encodePacked(node, result, expires))
-            )
-        );
-
-        address recoveredSigner = _recoverSigner(messageHash, sig);
-        if (recoveredSigner != signer) revert InvalidSignature();
-
-        return result;
-    }
-
-    /**
-     * @notice Resolve a name (reverse resolution)
-     * @param node The namehash
-     * @return The resolved name
-     */
-    function name(bytes32 node) external view returns (string memory) {
-        bytes memory callData = abi.encodeWithSelector(
-            this.name.selector,
-            node
-        );
-
-        revert OffchainLookup(
-            address(this),
-            gatewayUrls,
-            callData,
-            this.nameWithProof.selector,
-            abi.encode(node)
-        );
-    }
-
-    /**
-     * @notice Callback for name resolution
-     */
-    function nameWithProof(
-        bytes calldata response,
-        bytes calldata extraData
-    ) external view returns (string memory) {
-        (string memory result, uint64 expires, bytes memory sig) = abi.decode(
-            response,
-            (string, uint64, bytes)
-        );
-
-        bytes32 node = abi.decode(extraData, (bytes32));
-
-        if (block.timestamp > expires) revert SignatureExpired();
-
-        bytes32 messageHash = keccak256(
-            abi.encodePacked(
-                "\x19Ethereum Signed Message:\n32",
-                keccak256(abi.encodePacked(node, result, expires))
+                keccak256(abi.encodePacked(result, expires, extraData))
             )
         );
 
@@ -351,11 +137,6 @@ contract VoidMarketResolver {
 
     // ============ EIP-165 Support ============
 
-    /**
-     * @notice Check if interface is supported
-     * @param interfaceId The interface ID to check
-     * @return True if interface is supported
-     */
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
         return
             interfaceId == INTERFACE_META_ID ||
@@ -363,17 +144,12 @@ contract VoidMarketResolver {
             interfaceId == ADDR_MULTICHAIN_ID ||
             interfaceId == TEXT_INTERFACE_ID ||
             interfaceId == CONTENTHASH_INTERFACE_ID ||
-            interfaceId == NAME_INTERFACE_ID;
+            interfaceId == NAME_INTERFACE_ID ||
+            interfaceId == RESOLVE_INTERFACE_ID;
     }
 
     // ============ Internal Functions ============
 
-    /**
-     * @notice Recover signer from signature
-     * @param messageHash The message hash
-     * @param sig The signature
-     * @return The recovered signer address
-     */
     function _recoverSigner(
         bytes32 messageHash,
         bytes memory sig
