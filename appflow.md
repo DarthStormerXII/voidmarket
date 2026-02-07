@@ -16,7 +16,6 @@ VoidMarket is a **Telegram Mini App** prediction market where bet directions are
 | ClusterManager | `0x9dfbfba639a5fd11cf9bc58169157c450ce99661` | Cluster CRUD, invite system, photon/energy tracking |
 | NovaManager | `0xcef696b36e24945f45166548b1632c7585e3f0db` | Cluster vs cluster battles, match creation, reward distribution |
 | VoidMarketResolver (Arc) | `0xb26a88b1082c84b0aa4ed8bad84b95dbe39e32a8` | ENS CCIP-Read resolver on Arc |
-| ClusterEscrow | *(per-cluster, not factory deployed)* | Leader-controlled escrow for Nova wagering |
 
 ### ENS Infrastructure (Sepolia)
 
@@ -54,40 +53,34 @@ VoidMarket is a **Telegram Mini App** prediction market where bet directions are
 - Scoring: WIN = 100 photons, LOSE = 25 photons per match
 - Winning cluster gets +500 energy bonus
 - Prize pool (sent as `msg.value` at Nova start) distributed proportionally to winning cluster members based on photons earned
-- Admin-resolved matches (oracle-driven or manual)
+- Admin-resolved matches
 
-### 4. ClusterEscrow.sol (On-Chain, Per-Cluster)
-- Leader-controlled escrow for Nova wagering
-- Deposit funds → lock for specific Nova → release to NovaManager on start
-- Refund if Nova is cancelled
-- Tracks available vs locked balances
-
-### 5. VoidMarketResolver.sol (On-Chain, Sepolia + Arc)
+### 4. VoidMarketResolver.sol (On-Chain, Sepolia + Arc)
 - ENS CCIP-Read (EIP-3668) resolver implementing wildcard resolution (ENSIP-10)
 - `resolve(name, data)` always reverts with `OffchainLookup` → directs client to gateway
 - `resolveWithProof(response, extraData)` verifies gateway signature (EIP-191) and expiry
 - Supports: addr, text, contenthash, name records
 - Deployed on Sepolia (where `voidmarket.eth` registry lives) and Arc Testnet
 
-### 6. ENS CCIP-Read Gateway (Off-Chain, Express.js)
-- Resolves `*.voidmarket.eth` subdomains from PostgreSQL
+### 5. ENS CCIP-Read Gateway (Off-Chain, Express.js)
+- Resolves `*.voidmarket.eth` subdomains from PostgreSQL + Arc chain
 - Priority: Star (user) > Market > Cluster
 - Nested subdomain support: `eth-5k.alice.voidmarket.eth` for forked markets
 - Signs responses with trusted signer key (EIP-191)
 - 5-minute response validity period
-- Runs on port 3001, Prisma ORM for database access
+- Reads metadata from PostgreSQL, reads live market state (pool size, status, deadlines) from Arc RPC
 
-### 7. Circle Developer Wallets (Off-Chain, Server-Side)
+### 6. Circle Developer Wallets (Off-Chain, Server-Side)
 - Creates multi-chain wallets keyed by Telegram ID (RefID-based, deterministic addresses)
 - Server signs transactions on behalf of users — gasless UX
 - Supports all Circle-supported chains for deposit/withdrawal
 - Developer-controlled wallets: users don't hold private keys directly
 
-### 8. Frontend (Telegram Mini App, Next.js 16)
+### 7. Frontend (Telegram Mini App, Next.js 16)
 - React 19 with Tailwind CSS 4
 - Telegram WebApp SDK integration (auto-populates username, theme, etc.)
 - Circle SDK integration for wallet creation and transaction signing
-- Commit-reveal betting flow with localStorage for salt storage
+- Commit-reveal betting flow with salt stored in Telegram Cloud Storage (backup) + localStorage (fast access)
 - CCIP-Read ENS gateway implemented as Next.js API route (fallback)
 - Full API routes for all operations
 - WalletProvider context with all contract interaction methods
@@ -142,7 +135,7 @@ Circle developer wallet created:
 User is onboarded — ready to deposit and bet
 ```
 
-**Critical detail — ENS subdomain minting is "pack and call":**
+**ENS subdomain minting is "pack and call":**
 
 The subdomain `username.voidmarket.eth` is not minted on-chain. The user's profile is stored in PostgreSQL. When anyone queries `username.voidmarket.eth`:
 1. Client calls `VoidMarketResolver.resolve()` on Sepolia
@@ -163,10 +156,12 @@ Select source chain:
     |
     v
 ROUTE A — Deposit from external EVM chain (Circle CCTP):
-    1. User's external wallet USDC is bridged via Circle CCTP
-    2. Burn-and-mint: USDC burned on source, minted on Arc
-    3. Native USDC arrives on Arc (no wrapped tokens)
-    4. Developer wallet balance updated
+    1. Frontend shows deposit address on selected chain
+    2. User sends USDC to deposit address (or uses in-app bridge UI)
+    3. Circle CCTP burns USDC on source chain
+    4. Circle CCTP mints native USDC on Arc
+    5. Developer wallet balance updated
+    6. Frontend polls transaction status until confirmed
     |
     v
 ROUTE B — Deposit directly on Arc:
@@ -174,15 +169,15 @@ ROUTE B — Deposit directly on Arc:
     Transfer to developer wallet balance
     |
     v
-"Gateway Balance" = user's USDC on Arc developer wallet
-    - Abstracted across chains via Circle Gateway API
+"Gateway Balance" = user's USDC across all chains
+    - Queried via Circle Gateway API
     - Single unified balance view regardless of deposit source
-    - This is the balance used for all betting
+    - Betting uses Arc balance specifically
 ```
 
 **Gateway Balance concept:**
 
-The user's "Gateway Balance" is their USDC balance on the Arc Testnet developer wallet. Circle's multi-chain wallet abstraction means the user sees a single balance regardless of which chain they deposited from. On Arc, USDC is the native gas token (18 decimals for native, 6 for ERC20 interface), so there's no separate gas token to worry about.
+The user's "Gateway Balance" is their unified USDC balance queried via Circle Gateway API. This aggregates across all supported chains. For betting, the Arc Testnet balance is what matters — USDC is the native gas token on Arc (18 decimals for native, 6 for ERC20 interface).
 
 ### Phase 3: Placing a Bet (Commit Phase)
 
@@ -196,7 +191,8 @@ User selects a market and chooses YES or NO, enters amount
 Frontend generates commitment locally:
     1. salt = crypto.randomBytes(32)
     2. commitment = keccak256(abi.encodePacked(direction, salt))
-    3. Salt stored in localStorage (user's device)
+    3. Salt stored in Telegram Cloud Storage (persistent backup)
+    4. Salt also cached in localStorage (fast access)
     |
     v
 Server executes transaction via Circle developer wallet:
@@ -210,7 +206,7 @@ Bet is "in the void" — nobody knows the direction
     - Contract sees: commitment hash + amount
     - Server sees: commitment hash + amount
     - Other users see: nothing (or just total pool size)
-    - Only the user knows: direction + salt (stored locally)
+    - Only the user knows: direction + salt (stored in Telegram Cloud Storage)
 ```
 
 **What the user experiences:**
@@ -231,7 +227,7 @@ From the user's perspective, they just pick YES/NO, enter an amount, and tap "Se
 Betting deadline passes
     |
     v
-Admin (or oracle) resolves market:
+Admin resolves market:
     VoidMarketCore.resolveMarket(marketId, outcome)
     |   On-chain tx on Arc Testnet
     |   Sets market status = RESOLVED
@@ -244,6 +240,10 @@ If market has forked children:
     |   Set each child's status + outcome
     |
     v
+Telegram notification sent to all bettors:
+    "Market resolved! Reveal your bet to claim winnings."
+    |
+    v
 Reveal window opens (24 hours from resolution deadline):
     Users can now reveal their bets
 ```
@@ -251,10 +251,14 @@ Reveal window opens (24 hours from resolution deadline):
 ### Phase 5: Revealing Bets & Claiming Winnings (Reveal Phase)
 
 ```
-User receives notification: "Market resolved! Reveal your bet."
+User receives Telegram DM: "Market resolved! Reveal your bet."
     |
     v
-Frontend retrieves salt from localStorage
+User taps notification → opens Mini App
+    |
+    v
+Frontend retrieves salt from Telegram Cloud Storage
+    (falls back to localStorage if Cloud Storage unavailable)
     |
     v
 Server executes reveal via Circle developer wallet:
@@ -322,6 +326,26 @@ FORKED MARKET CREATION:
     Forked market auto-resolves when parent resolves
 ```
 
+### Phase 7: Withdrawal
+
+```
+User taps "Withdraw" in wallet page
+    |
+    v
+Select destination:
+    [Keep on Arc] [Withdraw to Ethereum] [Withdraw to Base] [...]
+    |
+    v
+ROUTE A — Withdraw to external chain (Circle CCTP):
+    1. USDC on Arc burned via CCTP
+    2. USDC minted on destination chain
+    3. Arrives in user's wallet on destination chain
+    |
+    v
+ROUTE B — Direct transfer on Arc:
+    Transfer native USDC to external wallet address on Arc
+```
+
 ---
 
 ## Cluster & Nova System
@@ -344,7 +368,7 @@ CREATE CLUSTER:
 ---
 
 INVITE SYSTEM:
-    Leader calls: ClusterManager.inviteToCluster(clusterId, inviteeAddress)
+    Any member calls: ClusterManager.inviteToCluster(clusterId, inviteeAddress)
     |   Generates unique invite code
     |   7-day expiry
     |   Can be targeted (specific address) or open (address(0))
@@ -414,9 +438,7 @@ NOVA COMPLETION:
 
 ---
 
-## Privacy Model: Commit-Reveal (Not ZK)
-
-The IDEA.md references "ZK private wagering" but the actual implementation uses **commit-reveal** cryptography, which is simpler but effective:
+## Privacy Model: Commit-Reveal
 
 ### What's Hidden
 - **Bet direction** — hidden via `keccak256(direction, salt)` commitment
@@ -431,11 +453,6 @@ The IDEA.md references "ZK private wagering" but the actual implementation uses 
 - **Binding**: Once committed, you can't change your direction (hash is fixed)
 - **Hiding**: Without the salt, the commitment reveals nothing about direction
 - **Verifiable**: On reveal, contract checks `keccak256(direction, salt) == commitment`
-
-### Key Difference from ZK
-- ZK proofs would hide amounts AND directions while proving correctness
-- Commit-reveal only hides direction — amounts are public
-- Trade-off: simpler implementation, sufficient for the core "private betting" feature
 
 ---
 
@@ -460,25 +477,25 @@ The IDEA.md references "ZK private wagering" but the actual implementation uses 
 | Star profiles (type, bio) | `voidmarket_stars` | Cosmetic, frequently updated |
 | Market metadata (question, category) | `voidmarket_market_metadata` | Fast queries, filtering |
 | Cluster metadata (description) | `voidmarket_cluster_metadata` | Cosmetic data |
-| Leaderboards, analytics | *(planned)* | Computed aggregates |
-| Bet history details | *(planned)* | Cross-reference with on-chain |
+| Bet history (cached from chain) | `voidmarket_bets` | Fast queries, cross-reference |
+| Transaction log | `voidmarket_transactions` | Deposit/withdraw audit trail |
 
 ### ENS Resolution — Identity Layer
 
-| Subdomain Pattern | Entity | Resolution Source |
-|-------------------|--------|-------------------|
-| `username.voidmarket.eth` | Star (user) | PostgreSQL → wallet address, profile |
-| `market-slug.voidmarket.eth` | Market | PostgreSQL → question, pool, status |
-| `cluster-name.voidmarket.eth` | Cluster | PostgreSQL → energy, members, leader |
-| `market.username.voidmarket.eth` | Forked Market | PostgreSQL → nested subdomain |
+The gateway resolves ENS text records from **both** PostgreSQL (metadata) and Arc chain (live state):
+
+| Subdomain Pattern | Entity | Example Records |
+|-------------------|--------|-----------------|
+| `username.voidmarket.eth` | Star | addr → wallet, `voidmarket.star-type`, `voidmarket.total-photons`, `voidmarket.cluster` |
+| `market-slug.voidmarket.eth` | Market | `voidmarket.question`, `voidmarket.pool-size`, `voidmarket.status`, `voidmarket.category` |
+| `cluster-name.voidmarket.eth` | Cluster | `voidmarket.energy`, `voidmarket.members`, `voidmarket.leader`, `voidmarket.novas-won` |
+| `market.username.voidmarket.eth` | Forked Market | Same as market, nested under creator |
 
 ---
 
 ## Balance Tracking
 
 ### Single Layer: Arc Developer Wallet
-
-Unlike wthelly's three-layer system (Custody → Clearnode → TEE), VoidMarket has a simpler model:
 
 ```
 User's USDC balance = their Circle developer wallet balance on Arc
@@ -489,7 +506,7 @@ Win:      VoidMarketCore.claimWinnings() → wallet balance increases
 Withdraw: Transfer USDC from Arc to any supported chain via CCTP
 ```
 
-The "Gateway Balance" shown in the UI is simply the user's Arc developer wallet USDC balance, queried via Circle's Gateway API which aggregates cross-chain balances.
+The "Gateway Balance" shown in the UI is the user's unified USDC balance across all chains, queried via Circle's Gateway API.
 
 ### Example Scenario
 
@@ -511,7 +528,7 @@ The "Gateway Balance" shown in the UI is simply the user's Arc developer wallet 
    User reveals → not a winner → 50 USDC stays in contract
    Arc wallet: unchanged from step 4
 
-6. User withdraws remaining balance via CCTP to any chain
+6. User withdraws remaining balance via CCTP to Ethereum
 ```
 
 ---
@@ -543,6 +560,7 @@ Client queries: cosmicvoyager.voidmarket.eth
 4. Gateway:
    - Decodes DNS-encoded name → "cosmicvoyager"
    - Looks up in PostgreSQL (priority: Star > Market > Cluster)
+   - For live data (pool-size, status): reads from Arc chain via RPC
    - Decodes resolver method (addr, text, contenthash)
    - Returns signed response: (result, expires, signature)
    |
@@ -555,37 +573,6 @@ Client queries: cosmicvoyager.voidmarket.eth
    v
 6. Client receives the ENS record as if it were on-chain
 ```
-
-**L2 Resolution note:** The VoidMarketResolver is deployed on both Sepolia and Arc Testnet, but there is currently no L2-specific resolution bridge (e.g., CCIP-Read that resolves L2 state from L1). The resolution path is: Sepolia resolver → off-chain gateway → PostgreSQL. Arc on-chain data (balances, bets) is NOT directly resolvable via ENS — the gateway would need to read from Arc RPC for that.
-
----
-
-## What Is Implemented vs What Needs Work
-
-### Implemented (Working)
-- [x] VoidMarketCore: market create, forked markets, commit-reveal betting, resolution (auto-cascading to forks), claim winnings, cancel+refund
-- [x] ClusterManager: create, invite (7-day codes), join, leave, leadership transfer, photon/energy tracking
-- [x] NovaManager: start nova, create matches, resolve matches, advance rounds, complete nova, claim rewards, cancel+refund
-- [x] ClusterEscrow: deposit, withdraw, nova-specific locking/releasing/refunding
-- [x] VoidMarketResolver: CCIP-Read resolve + resolveWithProof on Sepolia and Arc
-- [x] ENS Gateway: Express.js server with Prisma, full subdomain resolution, signed responses
-- [x] All contracts deployed on Arc Testnet with cross-links configured
-- [x] ENS resolver set on Sepolia registry for `voidmarket.eth`
-- [x] Frontend: Next.js 16 app structure, Telegram WebApp SDK, commitment generation, localStorage salt storage
-- [x] Supabase: 3 metadata tables (stars, markets, clusters)
-
-### Needs Work
-- [ ] **L2 Resolution Bridge**: No way to resolve Arc on-chain state (balances, market status) via ENS from Sepolia. Gateway reads from PostgreSQL only, not Arc RPC
-- [ ] **Circle SDK Full Integration**: Frontend has Circle SDK scaffolding but wallet creation + transaction signing flow ~30% complete
-- [ ] **CCTP Deposit Flow**: Cross-chain deposit UI and Circle CCTP bridge integration not fully wired
-- [ ] **Gateway → Arc Sync**: Gateway doesn't read on-chain data from Arc. Market pool sizes, bet counts, etc. need sync mechanism (events listener or periodic polling)
-- [ ] **Supabase Schema Completion**: Missing tables: bets, novas, nova_matches, deposits, transactions
-- [ ] **Telegram Bot Commands**: Bot command handlers not implemented (/start, /bet, /balance, /reveal, /claim)
-- [ ] **Oracle Integration**: Market resolution is admin-only. Stork oracle integration planned but not implemented
-- [ ] **ClusterEscrow Factory**: Each cluster needs its own escrow contract — factory pattern or lazy deployment not implemented
-- [ ] **Frontend Market Discovery**: Browsing, searching, and filtering markets not built
-- [ ] **Notification System**: No DM notifications for market resolution or reveal windows
-- [ ] **Salt Backup**: localStorage is fragile — Telegram Cloud Storage API backup for salts not implemented (critical for UX — losing salt = losing ability to reveal)
 
 ---
 
@@ -611,5 +598,5 @@ Client queries: cosmicvoyager.voidmarket.eth
 - **Admin is trusted** for market creation and resolution (centralized)
 - **Circle is trusted** for wallet custody and transaction signing (custodial model)
 - **Gateway server is trusted** for ENS resolution data integrity (single point of failure — if gateway is down, names don't resolve)
-- **Salt storage is critical** — if user loses their salt (localStorage cleared), they cannot reveal their bet and forfeit their funds
+- **Salt storage is durable** — Telegram Cloud Storage persists across devices within Telegram
 - **No on-chain privacy for amounts** — only direction is hidden, bet amounts are public on-chain
