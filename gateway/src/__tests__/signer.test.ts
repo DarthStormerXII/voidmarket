@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { ethers } from "ethers";
 import { signResponse, getSignerAddress } from "../services/signer.js";
 
-// The expected address for hardhat account #0
+// The expected address for the deployer key
 const EXPECTED_SIGNER_ADDRESS =
-  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+  "0x32FE11d9900D63350016374BE98ff37c3Af75847";
 
 describe("getSignerAddress", () => {
   it("returns the correct signer address from env private key", () => {
