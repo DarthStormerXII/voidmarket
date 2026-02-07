@@ -12,6 +12,7 @@ import { StarSelector } from "@/components/onboarding/star-selector"
 import { StarType } from "@/types"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
+import { useTelegram } from "@/components/providers/telegram-provider"
 
 type OnboardingStep = "welcome" | "story1" | "story2" | "story3" | "star" | "profile" | "deposit" | "complete"
 
@@ -35,11 +36,13 @@ const STORY_SLIDES = [
 
 export default function OnboardingPage() {
   const router = useRouter()
+  const { user } = useTelegram()
   const [step, setStep] = useState<OnboardingStep>("welcome")
   const [selectedStar, setSelectedStar] = useState<StarType | null>(null)
   const [name, setName] = useState("")
   const [bio, setBio] = useState("")
   const [isAnimating, setIsAnimating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Check if already onboarded
   useEffect(() => {
@@ -239,12 +242,32 @@ export default function OnboardingPage() {
               <Button
                 variant="default"
                 size="xl"
-                onClick={() => handleNext("deposit")}
-                disabled={!name.trim()}
+                onClick={async () => {
+                  setIsSaving(true)
+                  try {
+                    const telegramUserId = user?.id?.toString() || "test_user_123"
+                    const starName = name.trim().toLowerCase().replace(/\s+/g, "-")
+                    await fetch("/api/star", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        telegramUserId,
+                        name: starName,
+                        starType: selectedStar,
+                        description: bio || undefined,
+                      }),
+                    })
+                  } catch (err) {
+                    console.error("Failed to register star:", err)
+                  }
+                  setIsSaving(false)
+                  handleNext("deposit")
+                }}
+                disabled={!name.trim() || isSaving}
                 className="w-full"
               >
-                CONTINUE
-                <ChevronRight className="ml-2 h-5 w-5" />
+                {isSaving ? "REGISTERING..." : "CONTINUE"}
+                {!isSaving && <ChevronRight className="ml-2 h-5 w-5" />}
               </Button>
             </div>
           </div>
