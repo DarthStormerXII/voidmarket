@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { telegram } from "@/lib/haptics";
+import { syncCommitmentsToCloud } from "@/lib/commitment";
 
 interface TelegramUser {
   id: number;
@@ -78,6 +79,11 @@ export function TelegramProvider({ children }: { children: ReactNode }) {
       }
 
       setIsReady(true);
+
+      // Fire-and-forget: sync any localStorage commitments to Cloud Storage
+      if (isInTelegram) {
+        syncCommitmentsToCloud();
+      }
     };
 
     // Small delay to ensure Telegram script is loaded

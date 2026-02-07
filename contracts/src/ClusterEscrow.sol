@@ -4,6 +4,23 @@ pragma solidity ^0.8.24;
 import {ReentrancyGuard} from "./utils/ReentrancyGuard.sol";
 
 /**
+ * ╔═══════════════════════════════════════════════════════════════╗
+ * ║  HACKATHON DECISION: ClusterEscrow NOT used in current flow  ║
+ * ╠═══════════════════════════════════════════════════════════════╣
+ * ║                                                               ║
+ * ║  For ETHGlobal HackMoney 2026, NovaManager.startNova() takes  ║
+ * ║  msg.value directly from the Nova initiator. This avoids the  ║
+ * ║  extra deployment + deposit flow that ClusterEscrow requires. ║
+ * ║                                                               ║
+ * ║  ClusterEscrow is kept as-is for post-hackathon integration   ║
+ * ║  where each cluster leader pre-funds an escrow, and the       ║
+ * ║  NovaManager pulls wager from both escrows at Nova start.     ║
+ * ║                                                               ║
+ * ║  Status: Contract is complete + tested. Not deployed.         ║
+ * ╚═══════════════════════════════════════════════════════════════╝
+ */
+
+/**
  * @title ClusterEscrow
  * @notice Leader-controlled escrow contract for cluster Nova wagering
  * @dev Each cluster has its own escrow contract for managing Nova wagers
