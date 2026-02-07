@@ -60,7 +60,7 @@ export default function HomePage() {
         </h1>
 
         <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground mt-2 tracking-wide uppercase">
-          BETS GO IN. ONLY TRUTH COMES OUT.
+          GAMIFIED PRIVATE PREDICTION MARKETS THAT YOU CAN PLAY AND COMPETE WITH YOUR FRIENDS
         </p>
       </section>
 

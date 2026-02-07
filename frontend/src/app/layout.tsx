@@ -34,7 +34,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "VOIDMARKET",
-  description: "BETS GO IN. ONLY TRUTH COMES OUT.",
+  description: "Gamified private prediction markets that you can play and compete with your friends",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
