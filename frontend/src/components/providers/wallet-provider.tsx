@@ -11,6 +11,8 @@ import {
 import { useTelegram } from "./telegram-provider";
 import type {
   PlaceBetParams,
+  CreateMarketParams,
+  ForkMarketParams,
   TransactionResult,
   WalletInfo,
   WalletBalanceInfo,
@@ -35,6 +37,14 @@ interface WalletContextType {
   // Actions
   refreshBalance: () => Promise<void>;
   placeBet: (params: PlaceBetParams) => Promise<{ transactionId: string }>;
+  claimBet: (betId: number) => Promise<{ transactionId: string }>;
+  revealBet: (betId: number, direction: boolean, salt: string) => Promise<{ transactionId: string }>;
+  createMarket: (params: CreateMarketParams) => Promise<{ transactionId: string }>;
+  forkMarket: (params: ForkMarketParams) => Promise<{ transactionId: string }>;
+  createCluster: (name: string, isPrivate: boolean) => Promise<{ transactionId: string }>;
+  joinCluster: (clusterId: number, inviteCode?: string) => Promise<{ transactionId: string }>;
+  leaveCluster: () => Promise<{ transactionId: string }>;
+  startNova: (cluster1Id: number, cluster2Id: number, totalRounds: number, prizePool: number) => Promise<{ transactionId: string }>;
   pollTransaction: (txId: string) => Promise<TransactionResult>;
 }
 
@@ -49,6 +59,14 @@ const WalletContext = createContext<WalletContextType>({
   error: null,
   refreshBalance: async () => {},
   placeBet: async () => ({ transactionId: "" }),
+  claimBet: async () => ({ transactionId: "" }),
+  revealBet: async () => ({ transactionId: "" }),
+  createMarket: async () => ({ transactionId: "" }),
+  forkMarket: async () => ({ transactionId: "" }),
+  createCluster: async () => ({ transactionId: "" }),
+  joinCluster: async () => ({ transactionId: "" }),
+  leaveCluster: async () => ({ transactionId: "" }),
+  startNova: async () => ({ transactionId: "" }),
   pollTransaction: async () => ({
     transactionId: "",
     status: "PENDING",
@@ -191,6 +209,215 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     [user?.id]
   );
 
+  // Claim bet winnings
+  const claimBet = useCallback(
+    async (betId: number): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegramUserId, betId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to claim bet");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
+  // Reveal bet (ZK commitment reveal)
+  const revealBet = useCallback(
+    async (
+      betId: number,
+      direction: boolean,
+      salt: string
+    ): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/reveal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegramUserId, betId, direction, salt }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to reveal bet");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
+  // Create a new market
+  const createMarket = useCallback(
+    async (params: CreateMarketParams): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/market/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telegramUserId,
+          question: params.question,
+          deadline: params.deadline,
+          resolutionDeadline: params.resolutionDeadline,
+          category: params.category,
+          oracleType: params.oracleType,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create market");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
+  // Fork an existing market
+  const forkMarket = useCallback(
+    async (params: ForkMarketParams): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/market/fork", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telegramUserId,
+          parentMarketId: params.parentMarketId,
+          customQuestion: params.customQuestion,
+          deadline: params.deadline,
+          resolutionDeadline: params.resolutionDeadline,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fork market");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
+  // Create a new cluster
+  const createCluster = useCallback(
+    async (
+      name: string,
+      isPrivate: boolean
+    ): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/cluster/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegramUserId, name, isPrivate }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create cluster");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
+  // Join an existing cluster
+  const joinCluster = useCallback(
+    async (
+      clusterId: number,
+      inviteCode?: string
+    ): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/cluster/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telegramUserId, clusterId, inviteCode }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to join cluster");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
+  // Leave current cluster
+  const leaveCluster = useCallback(async (): Promise<{
+    transactionId: string;
+  }> => {
+    const telegramUserId = user?.id || "test_user_123";
+
+    const response = await fetch("/api/cluster/leave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramUserId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to leave cluster");
+    }
+
+    const data = await response.json();
+    return { transactionId: data.transactionId };
+  }, [user?.id]);
+
+  // Start a nova (cluster vs cluster competition)
+  const startNova = useCallback(
+    async (
+      cluster1Id: number,
+      cluster2Id: number,
+      totalRounds: number,
+      prizePool: number
+    ): Promise<{ transactionId: string }> => {
+      const telegramUserId = user?.id || "test_user_123";
+
+      const response = await fetch("/api/nova/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telegramUserId,
+          cluster1Id,
+          cluster2Id,
+          totalRounds,
+          prizePool,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to start nova");
+      }
+
+      const data = await response.json();
+      return { transactionId: data.transactionId };
+    },
+    [user?.id]
+  );
+
   // Poll transaction status
   const pollTransaction = useCallback(
     async (txId: string): Promise<TransactionResult> => {
@@ -241,6 +468,14 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         error,
         refreshBalance,
         placeBet,
+        claimBet,
+        revealBet,
+        createMarket,
+        forkMarket,
+        createCluster,
+        joinCluster,
+        leaveCluster,
+        startNova,
         pollTransaction,
       }}
     >

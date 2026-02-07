@@ -233,6 +233,21 @@ export interface PlaceBetParams {
   amount: number
 }
 
+export interface CreateMarketParams {
+  question: string
+  deadline: number // Unix timestamp
+  resolutionDeadline: number // Unix timestamp
+  category?: MarketCategory
+  oracleType?: string
+}
+
+export interface ForkMarketParams {
+  parentMarketId: number
+  customQuestion?: string
+  deadline?: number // Unix timestamp
+  resolutionDeadline?: number // Unix timestamp
+}
+
 // API response types
 export interface ApiMarket {
   id: number
