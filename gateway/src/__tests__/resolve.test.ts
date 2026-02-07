@@ -571,9 +571,9 @@ describe("GET /resolve/:sender/:calldata", () => {
         signature
       );
 
-      // Should match hardhat account #0
+      // Should match deployer key (0x32FE11d9900D63350016374BE98ff37c3Af75847)
       expect(recoveredAddress).toBe(
-        "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+        "0x32FE11d9900D63350016374BE98ff37c3Af75847"
       );
     });
 
