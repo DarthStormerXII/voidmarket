@@ -86,6 +86,27 @@ export async function POST(request: NextRequest) {
       ],
     });
 
+    // Auto-register forked market for ENS resolution (non-blocking)
+    try {
+      const { upsertMarketMetadata } = await import('@/lib/services/db');
+
+      const slug = question
+        ? question.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 50)
+        : `fork-${parentMarketId}-${Date.now()}`;
+
+      const tempId = Date.now();
+
+      await upsertMarketMetadata({
+        onChainId: tempId,
+        name: slug,
+        category: 'custom',
+        oracleType: 'fork',
+        creatorName: `star-${telegramUserId}`,
+      });
+    } catch (dbErr) {
+      console.error('[API /market/fork] DB registration error (non-critical):', dbErr);
+    }
+
     return NextResponse.json({
       transactionId: result.transactionId,
       txHash: result.txHash,

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button"
 import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
 import { useMarket } from "@/hooks/use-market"
+import { useWallet } from "@/components/providers/wallet-provider"
 import { toMarket } from "@/lib/adapters"
 import { CATEGORY_CONFIG } from "@/types"
 import { cn } from "@/lib/utils"
@@ -34,9 +35,11 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
   const { marketId } = use(params)
   const [isCreating, setIsCreating] = useState(false)
   const [isCreated, setIsCreated] = useState(false)
-  const [shareCode, setShareCode] = useState("")
+  const [forkedMarketId, setForkedMarketId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
+  const { forkMarket, pollTransaction } = useWallet()
   const { market: apiMarket, isLoading } = useMarket(marketId)
 
   if (isLoading) {
@@ -61,23 +64,54 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
   const handleCreateFork = async () => {
     haptics.buttonTap()
     setIsCreating(true)
+    setError(null)
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    try {
+      // Call the real fork API via wallet provider
+      const { transactionId } = await forkMarket({
+        parentMarketId: Number(marketId),
+      })
 
-    // Generate share code
-    const code = `VOID-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-    setShareCode(code)
-    setIsCreated(true)
-    setIsCreating(false)
-    haptics.success()
+      // Poll until confirmed
+      const result = await pollTransaction(transactionId)
+
+      if (result.status === "CONFIRMED") {
+        setForkedMarketId(transactionId)
+        setIsCreated(true)
+        haptics.success()
+      } else {
+        setError("Transaction failed. Please try again.")
+        haptics.error()
+      }
+    } catch (err) {
+      console.error("Fork market error:", err)
+      setError(err instanceof Error ? err.message : "Failed to fork market")
+      haptics.error()
+    } finally {
+      setIsCreating(false)
+    }
   }
 
-  const handleCopyShareCode = () => {
+  const shareLink = `https://voidmarket-ethglobal.vercel.app/markets/${forkedMarketId || marketId}`
+
+  const handleCopyShareLink = () => {
     haptics.buttonTap()
-    navigator.clipboard.writeText(`https://voidmarket.xyz/join/${shareCode}`)
+    navigator.clipboard.writeText(shareLink)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleShare = () => {
+    haptics.buttonTap()
+    if (navigator.share) {
+      navigator.share({
+        title: `Bet on: ${market?.title}`,
+        text: "Join my private prediction market on VoidMarket!",
+        url: shareLink,
+      }).catch(() => {})
+    } else {
+      handleCopyShareLink()
+    }
   }
 
   return (
@@ -197,23 +231,23 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
                 MARKET FORKED
               </h2>
               <p className="font-[family-name:var(--font-body)] text-sm text-muted-foreground">
-                Share the code below to invite participants
+                Share the link below to invite your friends
               </p>
             </div>
 
-            {/* Share Code */}
+            {/* Share Link */}
             <Card className="bg-void-mid border-white/30">
               <CardContent className="p-6">
                 <p className="font-[family-name:var(--font-display)] text-xs text-muted-foreground tracking-widest uppercase text-center mb-3">
-                  SHARE CODE
+                  SHARE LINK
                 </p>
                 <div className="flex items-center justify-center gap-3">
-                  <p className="font-[family-name:var(--font-mono)] text-2xl font-bold text-foreground tracking-widest">
-                    {shareCode}
+                  <p className="font-[family-name:var(--font-mono)] text-xs text-foreground truncate max-w-[250px]">
+                    {shareLink}
                   </p>
                   <button
-                    onClick={handleCopyShareCode}
-                    className="p-2 rounded-lg bg-void-surface hover:bg-void-deep transition-colors"
+                    onClick={handleCopyShareLink}
+                    className="p-2 rounded-lg bg-void-surface hover:bg-void-deep transition-colors flex-shrink-0"
                   >
                     {copied ? (
                       <Check className="h-5 w-5 text-white" />
@@ -245,6 +279,11 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
 
       {/* Sticky CTA */}
       <div className="fixed bottom-20 left-0 right-0 z-30 p-4 bg-background/95 backdrop-blur-lg border-t border-void-surface">
+        {error && (
+          <p className="font-[family-name:var(--font-body)] text-xs text-red-400 text-center mb-2">
+            {error}
+          </p>
+        )}
         {!isCreated ? (
           <Button
             variant="default"
@@ -254,7 +293,7 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
             className="w-full"
           >
             {isCreating ? (
-              "CREATING..."
+              "FORKING..."
             ) : (
               <>
                 <GitFork className="mr-2 h-5 w-5" />
@@ -267,9 +306,7 @@ export default function ForkMarketPage({ params }: ForkMarketPageProps) {
             <Button
               variant="outline"
               size="lg"
-              onClick={() => {
-                haptics.buttonTap()
-              }}
+              onClick={handleShare}
             >
               <Share2 className="mr-2 h-4 w-4" />
               SHARE
