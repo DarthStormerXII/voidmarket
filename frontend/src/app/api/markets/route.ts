@@ -2,7 +2,13 @@
  * GET /api/markets
  *
  * List markets from on-chain + DB metadata.
- * Query: ?status=active&category=crypto&limit=20
+ * Query params:
+ *   - search   (string)  — case-insensitive substring match on question text
+ *   - status   (string)  — "active" | "resolved" | "cancelled" | "all" (default "all")
+ *   - category (string)  — market category filter
+ *   - sort     (string)  — "newest" (default) | "ending-soon" | "pool-size" | "hot"
+ *   - offset   (number)  — pagination offset (default 0)
+ *   - limit    (number)  — max results per page (default 20, max 50)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,9 +19,12 @@ import type { ApiMarket } from '@/types';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const statusFilter = searchParams.get('status');
+    const searchFilter = searchParams.get('search')?.trim() || '';
+    const statusFilter = searchParams.get('status') || 'all';
     const categoryFilter = searchParams.get('category');
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const sortBy = searchParams.get('sort') || 'newest';
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0') || 0);
+    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20') || 20));
 
     // Fetch on-chain markets and DB metadata in parallel
     const [onChainMarkets, dbMetadata] = await Promise.all([
@@ -26,7 +35,7 @@ export async function GET(request: NextRequest) {
     // Build metadata lookup by onChainId
     const metadataMap = new Map(dbMetadata.map((m) => [m.onChainId, m]));
 
-    // Map and filter markets
+    // Map all markets to ApiMarket shape
     let markets: ApiMarket[] = await Promise.all(
       onChainMarkets.map(async (m) => {
         const meta = metadataMap.get(m.id);
@@ -62,19 +71,50 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Apply filters
-    if (statusFilter) {
+    // --- Apply filters ---
+
+    // Search: case-insensitive substring match on question
+    if (searchFilter) {
+      const query = searchFilter.toLowerCase();
+      markets = markets.filter((m) => m.question.toLowerCase().includes(query));
+    }
+
+    // Status filter (skip when "all")
+    if (statusFilter && statusFilter !== 'all') {
       markets = markets.filter((m) => m.status === statusFilter);
     }
+
+    // Category filter
     if (categoryFilter) {
       markets = markets.filter((m) => m.category === categoryFilter);
     }
 
-    // Apply limit
-    const total = markets.length;
-    markets = markets.slice(0, limit);
+    // --- Apply sort ---
+    switch (sortBy) {
+      case 'ending-soon':
+        markets.sort(
+          (a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+        );
+        break;
+      case 'pool-size':
+        markets.sort((a, b) => parseFloat(b.totalPool) - parseFloat(a.totalPool));
+        break;
+      case 'hot':
+        markets.sort((a, b) => b.totalBets - a.totalBets);
+        break;
+      case 'newest':
+      default:
+        // Newest = highest id first (most recently created on-chain)
+        markets.sort((a, b) => b.id - a.id);
+        break;
+    }
 
-    return NextResponse.json({ markets, total });
+    // --- Apply pagination ---
+    const total = markets.length;
+    markets = markets.slice(offset, offset + limit);
+    const hasMore = offset + limit < total;
+
+    return NextResponse.json({ markets, total, offset, limit, hasMore });
   } catch (error) {
     console.error('[API /markets] Error:', error);
     return NextResponse.json(

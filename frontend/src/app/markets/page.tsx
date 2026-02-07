@@ -1,14 +1,14 @@
 "use client"
 
-import { useState } from "react"
-import { Search, Flame, Clock, ChevronLeft } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Search, Flame, Clock, ChevronLeft, ArrowDownWideNarrow, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MarketCard } from "@/components/market/market-card"
 import { VoidLogo } from "@/components/ui/void-logo"
 import { BottomNav } from "@/components/layout/bottom-nav"
-import { useMarkets } from "@/hooks/use-markets"
+import { useMarkets, type MarketSort, type MarketStatusFilter } from "@/hooks/use-markets"
 import { toMarket } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { MarketCategory, CATEGORY_CONFIG } from "@/types"
@@ -16,29 +16,47 @@ import { haptics } from "@/lib/haptics"
 
 const categories: (MarketCategory | "all")[] = ["all", "crypto", "sports", "politics", "culture", "custom"]
 
-const sortOptions = [
+const statusFilters: { id: MarketStatusFilter; label: string }[] = [
+  { id: "all", label: "ALL" },
+  { id: "active", label: "ACTIVE" },
+  { id: "resolved", label: "RESOLVED" },
+  { id: "cancelled", label: "CANCELLED" },
+]
+
+const sortOptions: { id: MarketSort; label: string; icon: typeof Flame }[] = [
   { id: "hot", label: "HOT", icon: Flame },
-  { id: "ending", label: "ENDING SOON", icon: Clock },
+  { id: "ending-soon", label: "ENDING SOON", icon: Clock },
+  { id: "pool-size", label: "POOL SIZE", icon: TrendingUp },
+  { id: "newest", label: "NEWEST", icon: ArrowDownWideNarrow },
 ]
 
 export default function MarketsPage() {
-  const [search, setSearch] = useState("")
+  const [searchInput, setSearchInput] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<MarketCategory | "all">("all")
-  const [selectedSort, setSelectedSort] = useState("hot")
+  const [selectedStatus, setSelectedStatus] = useState<MarketStatusFilter>("all")
+  const [selectedSort, setSelectedSort] = useState<MarketSort>("hot")
 
-  const { markets: apiMarkets, isLoading } = useMarkets()
+  // Debounce search input (300ms)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(searchInput)
+    }, 300)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [searchInput])
 
-  const filteredMarkets = apiMarkets
-    .map(toMarket)
-    .filter(m => m.status === "active")
-    .filter(m => selectedCategory === "all" || m.category === selectedCategory)
-    .filter(m => m.title.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => {
-      if (selectedSort === "ending") {
-        return a.endDate.getTime() - b.endDate.getTime()
-      }
-      return b.totalBets - a.totalBets // hot = most bets
-    })
+  const { markets: apiMarkets, total, hasMore, isLoading, loadMore } = useMarkets({
+    search: debouncedSearch || undefined,
+    status: selectedStatus,
+    category: selectedCategory === "all" ? undefined : selectedCategory,
+    sort: selectedSort,
+  })
+
+  const displayMarkets = apiMarkets.map(toMarket)
 
   return (
     <div className="min-h-screen pb-24">
@@ -61,15 +79,40 @@ export default function MarketsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
             placeholder="SEARCH MARKETS..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-10"
           />
         </div>
       </div>
 
-      {/* Category Filter */}
+      {/* Status Filter Tabs */}
       <div className="px-4 pt-4">
+        <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
+          <div className="flex gap-2">
+            {statusFilters.map((sf) => (
+              <button
+                key={sf.id}
+                onClick={() => {
+                  haptics.buttonTap()
+                  setSelectedStatus(sf.id)
+                }}
+                className={cn(
+                  "flex-shrink-0 px-4 py-2 rounded-full font-[family-name:var(--font-display)] text-xs uppercase tracking-wider transition-all",
+                  selectedStatus === sf.id
+                    ? "bg-white/20 text-white border border-white"
+                    : "bg-void-surface text-muted-foreground border border-void-surface hover:border-white/30"
+                )}
+              >
+                {sf.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Category Filter */}
+      <div className="px-4 pt-3">
         <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
           <div className="flex gap-2">
             {categories.map((cat) => (
@@ -82,7 +125,7 @@ export default function MarketsPage() {
                 className={cn(
                   "flex-shrink-0 px-4 py-2 rounded-full font-[family-name:var(--font-display)] text-xs uppercase tracking-wider transition-all",
                   selectedCategory === cat
-                    ? "bg-white/20 text-white border border-white"
+                    ? "bg-white/10 text-white border border-white/50"
                     : "bg-void-surface text-muted-foreground border border-void-surface hover:border-white/30"
                 )}
               >
@@ -95,7 +138,7 @@ export default function MarketsPage() {
 
       {/* Sort Options */}
       <div className="px-4 pt-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
           {sortOptions.map((option) => {
             const Icon = option.icon
             return (
@@ -106,7 +149,7 @@ export default function MarketsPage() {
                   setSelectedSort(option.id)
                 }}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg font-[family-name:var(--font-display)] text-xs uppercase tracking-wider transition-all",
+                  "flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg font-[family-name:var(--font-display)] text-xs uppercase tracking-wider transition-all",
                   selectedSort === option.id
                     ? "bg-white/20 text-white"
                     : "bg-void-surface text-muted-foreground hover:text-secondary-foreground"
@@ -122,17 +165,38 @@ export default function MarketsPage() {
 
       {/* Markets List */}
       <div className="px-4 pt-6 space-y-3">
-        {isLoading ? (
+        {isLoading && displayMarkets.length === 0 ? (
           <div className="text-center py-12">
             <VoidLogo size="md" className="mx-auto mb-3 animate-pulse" />
             <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
               SCANNING THE VOID...
             </p>
           </div>
-        ) : filteredMarkets.length > 0 ? (
-          filteredMarkets.map((market) => (
-            <MarketCard key={market.id} market={market} />
-          ))
+        ) : displayMarkets.length > 0 ? (
+          <>
+            {displayMarkets.map((market) => (
+              <MarketCard key={market.id} market={market} />
+            ))}
+
+            {/* Result count */}
+            <p className="text-center font-[family-name:var(--font-body)] text-xs text-muted-foreground uppercase pt-2">
+              SHOWING {displayMarkets.length} OF {total} MARKETS
+            </p>
+
+            {hasMore && (
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  haptics.buttonTap()
+                  loadMore()
+                }}
+                disabled={isLoading}
+              >
+                {isLoading ? "LOADING..." : "LOAD MORE MARKETS"}
+              </Button>
+            )}
+          </>
         ) : (
           <div className="text-center py-12">
             <p className="font-[family-name:var(--font-display)] text-sm text-muted-foreground uppercase">
@@ -142,12 +206,6 @@ export default function MarketsPage() {
               TRY ADJUSTING YOUR FILTERS
             </p>
           </div>
-        )}
-
-        {filteredMarkets.length > 0 && (
-          <Button variant="ghost" className="w-full">
-            LOAD MORE MARKETS
-          </Button>
         )}
       </div>
 
