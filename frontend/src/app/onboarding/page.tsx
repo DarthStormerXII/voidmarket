@@ -99,14 +99,11 @@ export default function OnboardingPage() {
         {step === "welcome" && (
           <div className="flex-1 flex flex-col items-center justify-center px-8">
             <VoidLogo size="xl" className="mb-8 animate-pulse" />
-            <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold text-foreground uppercase text-center mb-4 tracking-widest">
-              WELCOME TO
+            <h1 className="font-[family-name:var(--font-accent)] text-4xl font-bold text-foreground uppercase text-center mb-8 tracking-widest text-glow">
+              VOIDMARKET
             </h1>
-            <h2 className="font-[family-name:var(--font-display)] text-4xl font-bold text-foreground uppercase text-center mb-8 tracking-widest text-glow">
-              THE VOID
-            </h2>
-            <p className="font-[family-name:var(--font-body)] text-sm text-muted-foreground text-center mb-12 max-w-xs">
-              Prediction markets powered by conviction. Enter the void and shape your destiny.
+            <p className="font-[family-name:var(--font-body)] text-sm text-muted-foreground text-center mb-12 max-w-xs uppercase">
+              Gamified private prediction markets that you can play and compete with your friends
             </p>
             <Button
               variant="default"
