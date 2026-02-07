@@ -1,17 +1,16 @@
 "use client"
 
-import { use, useState } from "react"
+import { use } from "react"
 import Link from "next/link"
 import {
   ChevronLeft,
   Swords,
   Sparkles,
-  Check,
+  Trophy,
   Clock,
   Target
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { StarAvatar } from "@/components/ui/star-avatar"
 import { VoidLogo } from "@/components/ui/void-logo"
@@ -22,7 +21,6 @@ import { useClusters } from "@/hooks/use-clusters"
 import { toNova, getStarTypeFromAddress } from "@/lib/adapters"
 import { cn } from "@/lib/utils"
 import { haptics } from "@/lib/haptics"
-import { BetOutcome } from "@/types"
 
 interface NovaPageProps {
   params: Promise<{ id: string }>
@@ -30,7 +28,6 @@ interface NovaPageProps {
 
 export default function NovaPage({ params }: NovaPageProps) {
   const { id } = use(params)
-  const [selectedBet, setSelectedBet] = useState<BetOutcome | null>(null)
 
   const { nova: apiNova, matches: apiMatches, isLoading: novaLoading } = useNova(id)
   const { star, isLoading: starLoading } = useStar()
@@ -78,12 +75,7 @@ export default function NovaPage({ params }: NovaPageProps) {
     .reduce((acc, m) => acc + m.photonsAwarded, 0)
 
   const isUserInCluster1 = star?.clusterId === apiNova.cluster1Id
-
-  const handlePlaceBet = () => {
-    if (!selectedBet) return
-    haptics.success()
-    console.log("Placing bet:", selectedBet)
-  }
+  const completedMatches = nova.matches.filter(m => m.status === "completed").length
 
   return (
     <div className="min-h-screen pb-32">
@@ -159,8 +151,28 @@ export default function NovaPage({ params }: NovaPageProps) {
 
             <div className="text-center mt-4 pt-4 border-t border-void-surface">
               <span className="font-[family-name:var(--font-body)] text-xs text-muted-foreground">
-                WAGER: <span className="text-foreground font-semibold">{nova.wagerAmount} USDC</span> PER CLUSTER
+                PRIZE POOL: <span className="text-foreground font-semibold">{nova.wagerAmount} USDC</span>
               </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Prize Distribution Info */}
+        <Card className="bg-void-deep border-void-surface">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Trophy className="h-4 w-4 text-white" />
+              <span className="font-[family-name:var(--font-display)] text-xs text-muted-foreground tracking-widest uppercase">
+                PRIZE DISTRIBUTION
+              </span>
+            </div>
+            <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground leading-relaxed">
+              The winning cluster splits the {nova.wagerAmount} USDC prize pool proportionally based on photons earned. Win matches to earn more photons and a larger share of the pot.
+            </p>
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-void-surface">
+              <span className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground uppercase">WIN = 100 PHOTONS</span>
+              <span className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground uppercase">LOSE = 25 PHOTONS</span>
+              <span className="font-[family-name:var(--font-body)] text-[10px] text-muted-foreground uppercase">+500 ENERGY</span>
             </div>
           </CardContent>
         </Card>
@@ -203,7 +215,7 @@ export default function NovaPage({ params }: NovaPageProps) {
                 </div>
 
                 {/* Market */}
-                <Card className="bg-void-surface border-void-surface mb-4">
+                <Card className="bg-void-surface border-void-surface">
                   <CardContent className="p-3">
                     <p className="font-[family-name:var(--font-display)] text-sm font-semibold text-foreground uppercase text-center">
                       {userMatch.marketTitle}
@@ -214,60 +226,18 @@ export default function NovaPage({ params }: NovaPageProps) {
                   </CardContent>
                 </Card>
 
-                {/* Bet Selection */}
-                {userMatch.status === "pending" || (userMatch.status === "active" && !userMatch.star1Bet) ? (
-                  <div>
-                    <p className="font-[family-name:var(--font-display)] text-xs text-muted-foreground tracking-widest uppercase mb-3 text-center">
-                      PLACE YOUR BET (10 USDC)
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => {
-                          haptics.buttonTap()
-                          setSelectedBet("YES")
-                        }}
-                        className={cn(
-                          "p-4 rounded-xl border-2 transition-all",
-                          selectedBet === "YES"
-                            ? "border-white bg-white/10"
-                            : "border-void-surface hover:border-white/30"
-                        )}
-                      >
-                        <span className="font-[family-name:var(--font-display)] text-lg font-bold text-white">
-                          YES
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          haptics.buttonTap()
-                          setSelectedBet("NO")
-                        }}
-                        className={cn(
-                          "p-4 rounded-xl border-2 transition-all",
-                          selectedBet === "NO"
-                            ? "border-white bg-white/10"
-                            : "border-void-surface hover:border-white/30"
-                        )}
-                      >
-                        <span className="font-[family-name:var(--font-display)] text-lg font-bold text-white/60">
-                          NO
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <Check className="h-5 w-5 text-white" />
-                      <span className="font-[family-name:var(--font-display)] text-sm text-foreground uppercase">
-                        BET PLACED: {userMatch.star1Bet?.outcome}
-                      </span>
-                    </div>
-                    <p className="font-[family-name:var(--font-body)] text-xs text-muted-foreground mt-1">
-                      Waiting for opponent...
-                    </p>
-                  </div>
-                )}
+                {/* Match Status */}
+                <div className="mt-3 text-center">
+                  {userMatch.status === "completed" ? (
+                    <Badge variant="inVoid" className="text-xs">
+                      {userMatch.winnerId === userAddress ? "YOU WON +100 PHOTONS" : "YOU EARNED +25 PHOTONS"}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs animate-pulse">
+                      {userMatch.status === "active" ? "MATCH IN PROGRESS" : "AWAITING START"}
+                    </Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -280,7 +250,7 @@ export default function NovaPage({ params }: NovaPageProps) {
           <div className="flex items-center gap-2 mb-3">
             <Swords className="h-4 w-4 text-white" />
             <span className="font-[family-name:var(--font-display)] text-xs text-muted-foreground tracking-widest uppercase">
-              ALL MATCHES ({nova.matches.filter(m => m.status === "completed").length}/{nova.matches.length})
+              ALL MATCHES ({completedMatches}/{nova.matches.length})
             </span>
           </div>
 
@@ -296,14 +266,14 @@ export default function NovaPage({ params }: NovaPageProps) {
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-[family-name:var(--font-display)] text-xs text-foreground uppercase">
+                      <span className={cn(
+                        "font-[family-name:var(--font-display)] text-xs uppercase",
+                        match.status === "completed" && match.winnerId === match.star1Id
+                          ? "text-white font-bold"
+                          : "text-foreground"
+                      )}>
                         {match.star1Name}
                       </span>
-                      {match.star1Bet && (
-                        <Badge variant="outline" className="text-[8px]">
-                          {match.star1Bet.outcome}
-                        </Badge>
-                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -312,7 +282,7 @@ export default function NovaPage({ params }: NovaPageProps) {
                           DONE
                         </Badge>
                       ) : match.status === "active" ? (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[10px] animate-pulse">
                           LIVE
                         </Badge>
                       ) : (
@@ -321,12 +291,12 @@ export default function NovaPage({ params }: NovaPageProps) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {match.star2Bet && (
-                        <Badge variant="outline" className="text-[8px]">
-                          {match.star2Bet.outcome}
-                        </Badge>
-                      )}
-                      <span className="font-[family-name:var(--font-display)] text-xs text-foreground uppercase">
+                      <span className={cn(
+                        "font-[family-name:var(--font-display)] text-xs uppercase",
+                        match.status === "completed" && match.winnerId === match.star2Id
+                          ? "text-white font-bold"
+                          : "text-foreground"
+                      )}>
                         {match.star2Name}
                       </span>
                     </div>
@@ -341,21 +311,6 @@ export default function NovaPage({ params }: NovaPageProps) {
           </div>
         </div>
       </div>
-
-      {/* Sticky CTA */}
-      {userMatch && (userMatch.status === "pending" || (userMatch.status === "active" && !userMatch.star1Bet)) && (
-        <div className="fixed bottom-20 left-0 right-0 z-30 p-4 bg-background/95 backdrop-blur-lg border-t border-void-surface">
-          <Button
-            variant="default"
-            size="xl"
-            onClick={handlePlaceBet}
-            disabled={!selectedBet}
-            className="w-full"
-          >
-            CONFIRM BET
-          </Button>
-        </div>
-      )}
 
       <BottomNav />
     </div>

@@ -79,10 +79,10 @@ export async function POST(request: NextRequest) {
 
     // Auto-register market for ENS resolution (non-blocking)
     try {
-      const { upsertMarketMetadata } = await import('@/lib/services/db');
+      const { upsertMarketMetadata, checkEnsNameCollision } = await import('@/lib/services/db');
 
       // Create a slug from the question
-      const slug = question
+      let slug = question
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, '')
         .replace(/\s+/g, '-')
@@ -90,6 +90,12 @@ export async function POST(request: NextRequest) {
 
       // Placeholder on-chain ID (real ID requires parsing tx receipt)
       const tempId = Date.now();
+
+      // Deduplicate slug if it collides with an existing star or cluster
+      const collision = await checkEnsNameCollision(slug, 'market');
+      if (collision.taken) {
+        slug = `${slug}-${tempId}`;
+      }
 
       await upsertMarketMetadata({
         onChainId: tempId,

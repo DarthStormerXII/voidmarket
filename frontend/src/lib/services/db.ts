@@ -320,6 +320,48 @@ export async function getAllClusterMetadata(): Promise<ClusterMetadata[]> {
   return (rows || []).map(mapCluster);
 }
 
+// ─── ENS Name Collision Check ─────────────────────────────────
+
+/**
+ * Check if a name is available across all entity types (stars, markets, clusters).
+ * Returns the entity type that owns the name, or null if available.
+ */
+export async function checkEnsNameCollision(
+  name: string,
+  excludeType?: 'star' | 'market' | 'cluster'
+): Promise<{ taken: boolean; ownedBy?: 'star' | 'market' | 'cluster' }> {
+  const normalized = name.toLowerCase().replace(/\s+/g, '-');
+
+  if (excludeType !== 'star') {
+    const { data: starRow } = await supabase
+      .from('voidmarket_stars')
+      .select('id')
+      .eq('name', normalized)
+      .maybeSingle();
+    if (starRow) return { taken: true, ownedBy: 'star' };
+  }
+
+  if (excludeType !== 'market') {
+    const { data: marketRow } = await supabase
+      .from('voidmarket_market_metadata')
+      .select('id')
+      .eq('name', normalized)
+      .maybeSingle();
+    if (marketRow) return { taken: true, ownedBy: 'market' };
+  }
+
+  if (excludeType !== 'cluster') {
+    const { data: clusterRow } = await supabase
+      .from('voidmarket_cluster_metadata')
+      .select('id')
+      .eq('name', normalized)
+      .maybeSingle();
+    if (clusterRow) return { taken: true, ownedBy: 'cluster' };
+  }
+
+  return { taken: false };
+}
+
 // ─── ENS Resolution Helpers ─────────────────────────────────
 
 export interface ResolvedEntity {

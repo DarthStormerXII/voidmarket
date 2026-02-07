@@ -11,6 +11,7 @@ import {
   upsertStar,
   getStarByTelegramId,
   getStarByAddress,
+  checkEnsNameCollision,
 } from '@/lib/services/db';
 import { getMemberByAddress } from '@/lib/services/contracts/cluster-service';
 import type { ApiStar } from '@/types';
@@ -80,6 +81,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required fields: telegramUserId, name, starType' },
         { status: 400 }
+      );
+    }
+
+    // Check for ENS name collision across all entity types
+    const collision = await checkEnsNameCollision(name, 'star');
+    if (collision.taken) {
+      return NextResponse.json(
+        { error: `Name "${name}" is already taken by a ${collision.ownedBy}. Choose a different name.` },
+        { status: 409 }
       );
     }
 
