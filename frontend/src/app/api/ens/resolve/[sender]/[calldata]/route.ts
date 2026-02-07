@@ -77,11 +77,35 @@ export async function GET(
     // Decode DNS-encoded name
     const fullName = decodeDnsName(hexToBytes(nameBytes as Hex));
     const parts = fullName.split('.');
-    const subdomain = parts[0];
-    const parentDomain = parts.length > 3 ? parts[1] : null;
 
-    // Look up entity
-    const entity = await resolveEntity(subdomain, parentDomain);
+    // Determine if this is a subdomain or the base domain
+    // "gabriel.voidmarket.eth" → parts=["gabriel","voidmarket","eth"] → subdomain lookup
+    // "voidmarket.eth" → parts=["voidmarket","eth"] → base domain (return defaults)
+    // "market.gabriel.voidmarket.eth" → parts=["market","gabriel","voidmarket","eth"] → nested
+    const isBaseDomain = parts.length <= 2 || (parts.length === 2 && parts[1] === 'eth');
+    const isSubdomain = parts.length === 3 && parts[1] === 'voidmarket' && parts[2] === 'eth';
+    const isNested = parts.length > 3;
+
+    let entity: ResolvedEntity | null = null;
+
+    if (isBaseDomain) {
+      // Base domain voidmarket.eth — return a default entity
+      entity = {
+        type: 'star',
+        walletAddress: '0x32FE11d9900D63350016374BE98ff37c3Af75847',
+        textRecords: {
+          'description': 'VoidMarket: Gamified Private Prediction Markets',
+          'url': 'https://voidmarket-ethglobal.vercel.app',
+        },
+      };
+    } else if (isSubdomain) {
+      entity = await resolveEntity(parts[0], null);
+    } else if (isNested) {
+      entity = await resolveEntity(parts[0], parts[1]);
+    } else {
+      entity = await resolveEntity(parts[0], null);
+    }
+
     if (!entity) {
       return NextResponse.json({ error: 'Name not found' }, { status: 404, headers: corsHeaders });
     }
