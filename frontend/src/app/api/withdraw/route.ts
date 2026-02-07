@@ -2,25 +2,31 @@
  * POST /api/withdraw
  *
  * Transfer USDC from user's Arc wallet to a destination address.
+ * Supports same-chain (ARC-TESTNET) and cross-chain (ETH-SEPOLIA, BASE-SEPOLIA) withdrawals.
  *
- * Input: { telegramUserId, destinationAddress, amount }
- * Output: { transactionId, txHash, status }
+ * Input: { telegramUserId, destinationAddress, amount, destinationChain? }
+ * Output: { transactionId, txHash, status, isCrossChain }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getWalletByRefId } from '@/lib/services/circle/wallet';
 import { executeTransfer } from '@/lib/services/circle/transaction';
+import { initiateBridgeWithdrawal } from '@/lib/services/circle/bridge';
+import type { SupportedBlockchain } from '@/lib/services/circle/client';
+
+const VALID_CHAINS: SupportedBlockchain[] = ['ARC-TESTNET', 'ETH-SEPOLIA', 'BASE-SEPOLIA'];
 
 interface WithdrawRequest {
   telegramUserId: string;
   destinationAddress: string;
   amount: number;
+  destinationChain?: SupportedBlockchain;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body: WithdrawRequest = await request.json();
-    const { telegramUserId, destinationAddress, amount } = body;
+    const { telegramUserId, destinationAddress, amount, destinationChain } = body;
 
     if (!telegramUserId || !destinationAddress || !amount) {
       return NextResponse.json(
@@ -44,6 +50,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (destinationChain && !VALID_CHAINS.includes(destinationChain)) {
+      return NextResponse.json(
+        { error: `Invalid destinationChain. Must be one of: ${VALID_CHAINS.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     const refId = `tg_${telegramUserId}`;
     const wallet = await getWalletByRefId(refId);
 
@@ -54,17 +67,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await executeTransfer({
-      walletId: wallet.id,
-      to: destinationAddress,
-      amount: amount.toString(),
-    });
+    const isCrossChain = destinationChain && destinationChain !== 'ARC-TESTNET';
 
-    return NextResponse.json({
-      transactionId: result.transactionId,
-      txHash: result.txHash,
-      status: result.status,
-    });
+    if (!isCrossChain) {
+      // Same-chain: direct transfer on Arc Testnet
+      const result = await executeTransfer({
+        walletId: wallet.id,
+        to: destinationAddress,
+        amount: amount.toString(),
+      });
+
+      return NextResponse.json({
+        transactionId: result.transactionId,
+        txHash: result.txHash,
+        status: result.status,
+        isCrossChain: false,
+      });
+    } else {
+      // Cross-chain: bridge withdrawal via CCTP
+      const result = await initiateBridgeWithdrawal({
+        refId,
+        destinationBlockchain: destinationChain,
+        destinationAddress,
+        amount: amount.toString(),
+      });
+
+      return NextResponse.json({
+        transactionId: result.transactionId,
+        status: result.status,
+        isCrossChain: true,
+        destinationChain: result.destinationChain,
+      });
+    }
   } catch (error) {
     console.error('[API /withdraw] Error:', error);
     return NextResponse.json(
