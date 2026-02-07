@@ -111,6 +111,57 @@ export const voidMarketCoreAbi = [
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
   },
+  {
+    type: 'function',
+    name: 'createMarket',
+    inputs: [
+      { name: 'question', type: 'string' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'resolutionDeadline', type: 'uint256' },
+    ],
+    outputs: [{ name: 'marketId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'createForkedMarket',
+    inputs: [
+      { name: 'parentMarketId', type: 'uint256' },
+      { name: 'customQuestion', type: 'string' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'resolutionDeadline', type: 'uint256' },
+    ],
+    outputs: [{ name: 'marketId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'revealBet',
+    inputs: [
+      { name: 'betId', type: 'uint256' },
+      { name: 'direction', type: 'bool' },
+      { name: 'salt', type: 'bytes32' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'claimWinnings',
+    inputs: [{ name: 'betId', type: 'uint256' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'placeBet',
+    inputs: [
+      { name: 'marketId', type: 'uint256' },
+      { name: 'commitmentHash', type: 'bytes32' },
+    ],
+    outputs: [{ name: 'betId', type: 'uint256' }],
+    stateMutability: 'payable',
+  },
 ] as const;
 
 export const clusterManagerAbi = [
@@ -197,6 +248,33 @@ export const clusterManagerAbi = [
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
   },
+  {
+    type: 'function',
+    name: 'createCluster',
+    inputs: [
+      { name: 'name', type: 'string' },
+      { name: 'isPrivate', type: 'bool' },
+    ],
+    outputs: [{ name: 'clusterId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'joinCluster',
+    inputs: [
+      { name: 'clusterId', type: 'uint256' },
+      { name: 'inviteCode', type: 'bytes32' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'leaveCluster',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
 ] as const;
 
 export const novaManagerAbi = [
@@ -282,5 +360,16 @@ export const novaManagerAbi = [
     inputs: [],
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'startNova',
+    inputs: [
+      { name: 'cluster1Id', type: 'uint256' },
+      { name: 'cluster2Id', type: 'uint256' },
+      { name: 'totalRounds', type: 'uint256' },
+    ],
+    outputs: [{ name: 'novaId', type: 'uint256' }],
+    stateMutability: 'payable',
   },
 ] as const;
