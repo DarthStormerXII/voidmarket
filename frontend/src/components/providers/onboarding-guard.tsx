@@ -10,7 +10,7 @@ export function OnboardingGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Always render the onboarding page itself
-    if (pathname === "/onboarding") {
+    if (pathname === "/onboarding" || pathname === "/pitch") {
       setShowContent(true)
       return
     }
