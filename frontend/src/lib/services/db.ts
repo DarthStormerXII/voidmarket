@@ -11,6 +11,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { getMarketById } from './contracts/market-service';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -377,6 +378,23 @@ export async function getMarketByNameForENS(
 
   if (market.creatorName) {
     textRecords['voidmarket.creator'] = market.creatorName;
+  }
+
+  // Enrich with on-chain data
+  try {
+    const chain = await getMarketById(market.onChainId);
+    if (chain) {
+      textRecords['voidmarket.pool-size'] = chain.totalPool;
+      textRecords['voidmarket.status'] = chain.status;
+      textRecords['voidmarket.question'] = chain.question;
+      textRecords['voidmarket.yes-amount'] = chain.totalYesAmount;
+      textRecords['voidmarket.no-amount'] = chain.totalNoAmount;
+      if (chain.status === 'resolved') {
+        textRecords['voidmarket.outcome'] = chain.outcome ? 'YES' : 'NO';
+      }
+    }
+  } catch {
+    // Graceful degradation — chain data optional
   }
 
   return { type: 'market', textRecords };

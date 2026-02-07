@@ -1,5 +1,10 @@
 import { PrismaClient } from "../../src/generated/prisma/client.js";
 import type { ResolvedEntity } from "../types/index.js";
+import {
+  getMarketFromChain,
+  getClusterFromChain,
+  getStarFromChain,
+} from "./chain-reader.js";
 
 const prisma = new PrismaClient();
 
@@ -34,6 +39,14 @@ export async function getStarByName(
     }
   }
 
+  // Enrich with on-chain data
+  const chainData = await getStarFromChain(star.walletAddress);
+  if (chainData) {
+    textRecords["voidmarket.on-chain-photons"] = chainData.photons;
+    textRecords["voidmarket.on-chain-cluster-id"] = String(chainData.clusterId);
+    textRecords["voidmarket.on-chain-active"] = String(chainData.isActive);
+  }
+
   return {
     type: "star",
     walletAddress: star.walletAddress,
@@ -65,6 +78,21 @@ export async function getMarketByName(
     textRecords["voidmarket.creator"] = market.creatorName;
   }
 
+  // Enrich with on-chain data
+  const chainData = await getMarketFromChain(market.onChainId);
+  if (chainData) {
+    textRecords["voidmarket.pool-size"] = chainData.totalPool;
+    textRecords["voidmarket.status"] = chainData.status;
+    textRecords["voidmarket.total-bets"] = String(chainData.totalBets);
+    textRecords["voidmarket.deadline"] = String(chainData.deadline);
+    textRecords["voidmarket.yes-amount"] = chainData.totalYesAmount;
+    textRecords["voidmarket.no-amount"] = chainData.totalNoAmount;
+    textRecords["voidmarket.question"] = chainData.question;
+    if (chainData.status === "resolved") {
+      textRecords["voidmarket.outcome"] = chainData.outcome ? "YES" : "NO";
+    }
+  }
+
   return {
     type: "market",
     textRecords,
@@ -91,6 +119,17 @@ export async function getClusterByName(
 
   if (cluster.avatarUrl) {
     textRecords["avatar"] = cluster.avatarUrl;
+  }
+
+  // Enrich with on-chain data
+  const chainData = await getClusterFromChain(cluster.onChainId);
+  if (chainData) {
+    textRecords["voidmarket.energy"] = String(chainData.energy);
+    textRecords["voidmarket.novas-won"] = String(chainData.novasWon);
+    textRecords["voidmarket.total-novas"] = String(chainData.totalNovas);
+    textRecords["voidmarket.member-count"] = String(chainData.memberCount);
+    textRecords["voidmarket.total-photons"] = chainData.totalPhotons;
+    textRecords["voidmarket.leader"] = chainData.leader;
   }
 
   return {
